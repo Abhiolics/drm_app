@@ -1,17 +1,19 @@
 {
   "expo": {
-    "name": "drmpay_app",
-    "slug": "drmpay_app",
+    "name": "PayApp",
+    "slug": "payapp",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.abhiolics.payapp"
     },
     "android": {
+      "package": "com.abhiolics.payapp",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#09080D",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -20,6 +22,12 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "0112830c-4dd3-40ad-ab0d-3d1d8cd9a7fa"
+      }
+    },
+    "owner": "abhiolics"
   }
 }
