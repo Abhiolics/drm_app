@@ -90,14 +90,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: Spacing.xs,
+    gap: Spacing.xs,
   },
   tagBadge: {
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderColor: Colors.primaryLight,
+    flexShrink: 0,
   },
   validDate: {
     color: Colors.textMuted,
+    flexShrink: 0,
   },
   title: {
     color: Colors.textPrimary,
@@ -117,7 +120,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.borderSubtle,
     paddingTop: Spacing.sm,
-    gap: Spacing.xs,
+    gap: Spacing.sm,
   },
   rewardContainer: {
     flexDirection: 'row',
@@ -140,6 +143,7 @@ const styles = StyleSheet.create({
   },
   ctaWrapper: {
     flexShrink: 0,
-    minWidth: 90,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
   },
 });

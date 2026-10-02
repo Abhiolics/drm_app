@@ -111,13 +111,12 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     marginRight: Spacing.xs,
+    justifyContent: 'center',
   },
   badgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 4,
+    gap: 6,
     marginBottom: 4,
   },
   specialBadge: {
@@ -125,6 +124,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.borderAccent,
     paddingVertical: 1,
     paddingHorizontal: 6,
+    flexShrink: 0,
   },
   codeText: {
     color: Colors.textMuted,
@@ -140,7 +140,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.md,
     marginTop: 2,
-    flexWrap: 'wrap',
   },
   statCol: {
     flexDirection: 'column',
@@ -155,6 +154,7 @@ const styles = StyleSheet.create({
   },
   rightAction: {
     flexShrink: 0,
-    minWidth: 68,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
   },
 });

@@ -78,6 +78,11 @@ export const PrimaryButton: React.FC<PrimaryButtonProps> = ({
   };
 
   const currentSize = sizeStyles[size];
+  const flattenedStyle = StyleSheet.flatten(style);
+  const isFixedOrFullWidth =
+    fullWidth ||
+    flattenedStyle?.width !== undefined ||
+    flattenedStyle?.flex !== undefined;
 
   if (variant === 'primary') {
     return (
@@ -89,6 +94,9 @@ export const PrimaryButton: React.FC<PrimaryButtonProps> = ({
         style={[
           styles.container,
           animatedStyle,
+          {
+            height: currentSize.height,
+          },
           fullWidth && styles.fullWidth,
           disabled && styles.disabled,
           style,
@@ -100,11 +108,18 @@ export const PrimaryButton: React.FC<PrimaryButtonProps> = ({
           end={{ x: 1, y: 1 }}
           style={[
             styles.gradient,
-            { height: currentSize.height, paddingHorizontal: currentSize.paddingHorizontal },
+            {
+              height: '100%',
+              paddingHorizontal: currentSize.paddingHorizontal,
+            },
+            isFixedOrFullWidth && styles.fullWidth,
+            flattenedStyle?.minWidth !== undefined && styles.minWidthFull,
           ]}
         >
           {icon && iconPosition === 'left' && <>{icon}</>}
           <Text
+            numberOfLines={1}
+            ellipsizeMode="tail"
             style={[
               Typography.button,
               styles.primaryText,
@@ -175,6 +190,8 @@ export const PrimaryButton: React.FC<PrimaryButtonProps> = ({
     >
       {icon && iconPosition === 'left' && <>{icon}</>}
       <Text
+        numberOfLines={1}
+        ellipsizeMode="tail"
         style={[
           Typography.button,
           { color: vStyle.text, fontSize: currentSize.fontSize },
@@ -198,8 +215,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   gradient: {
-    width: '100%',
-    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
@@ -207,6 +222,9 @@ const styles = StyleSheet.create({
   },
   fullWidth: {
     width: '100%',
+  },
+  minWidthFull: {
+    minWidth: '100%',
   },
   primaryText: {
     color: '#FFFFFF',

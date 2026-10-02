@@ -65,6 +65,8 @@ export const Badge: React.FC<BadgeProps> = ({
       ]}
     >
       <Text
+        numberOfLines={1}
+        ellipsizeMode="tail"
         style={[
           styles.text,
           {
@@ -86,6 +88,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   text: {
     fontWeight: '700',
