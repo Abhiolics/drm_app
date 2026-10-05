@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { OfferItem } from '../types';
+import { ApiPlan, OfferItem } from '../types';
 import { Colors } from '../theme/colors';
 import { BorderRadius, Spacing } from '../theme/spacing';
 import { Typography } from '../theme/typography';
@@ -8,56 +8,69 @@ import { Badge } from './Badge';
 import { PrimaryButton } from './PrimaryButton';
 
 interface OfferCardProps {
-  offer: OfferItem;
-  onClaim: (offer: OfferItem) => void;
+  plan?: ApiPlan;
+  offer?: OfferItem;
+  isUserCurrentPlan?: boolean;
+  onClaim: (item: ApiPlan | OfferItem) => void;
 }
 
-export const OfferCard: React.FC<OfferCardProps> = ({ offer, onClaim }) => {
+export const OfferCard: React.FC<OfferCardProps> = ({
+  plan,
+  offer,
+  isUserCurrentPlan = false,
+  onClaim,
+}) => {
+  const title = plan ? plan.name : (offer ? offer.badge : 'VIP Plan');
+  const amount = plan ? plan.amount : (offer ? offer.amount : 0);
+  const code = plan ? plan._id.slice(-6).toUpperCase() : (offer ? offer.code : 'DRMP');
+  const description = plan ? plan.description : (offer ? `+${offer.income} bonus` : '');
+  const isClaimed = isUserCurrentPlan || (offer?.isClaimed ?? false);
+
   return (
     <View style={styles.card}>
       <View style={styles.leftIconContainer}>
         <View style={styles.iconCircle}>
-          <Text style={styles.currencySymbol}>{offer.currency}</Text>
+          <Text style={styles.currencySymbol}>DRMP</Text>
         </View>
       </View>
 
       <View style={styles.centerContent}>
         <View style={styles.badgeRow}>
           <Badge
-            label={offer.badge}
+            label={title}
             variant="outline"
             size="sm"
             style={styles.specialBadge}
             textStyle={{ color: Colors.primary, fontSize: 9 }}
           />
           <Text style={[Typography.captionSmall, styles.codeText]} numberOfLines={1}>
-            Code: <Text style={styles.codeBold}>{offer.code}</Text>
+            Tier: <Text style={styles.codeBold}>{code}</Text>
           </Text>
         </View>
 
         <View style={styles.numbersRow}>
           <View style={styles.statCol}>
-            <Text style={[Typography.captionSmall, styles.metaLabel]}>Amount</Text>
+            <Text style={[Typography.captionSmall, styles.metaLabel]}>Plan Amount</Text>
             <Text
               style={[Typography.bodySemiBold, styles.metaValue]}
               numberOfLines={1}
               adjustsFontSizeToFit
             >
-              ₹{offer.amount}
+              ₹{amount.toLocaleString('en-IN')}
             </Text>
           </View>
-          <View style={styles.statCol}>
-            <Text style={[Typography.captionSmall, styles.metaLabel]}>Income</Text>
+
+          <View style={[styles.statCol, { flex: 1.2 }]}>
+            <Text style={[Typography.captionSmall, styles.metaLabel]}>Benefits</Text>
             <Text
               style={[
-                Typography.bodySemiBold,
+                Typography.captionSmall,
                 styles.metaValue,
-                { color: Colors.success },
+                { color: Colors.success, fontSize: 11 },
               ]}
-              numberOfLines={1}
-              adjustsFontSizeToFit
+              numberOfLines={2}
             >
-              +{offer.income}
+              {description}
             </Text>
           </View>
         </View>
@@ -65,11 +78,11 @@ export const OfferCard: React.FC<OfferCardProps> = ({ offer, onClaim }) => {
 
       <View style={styles.rightAction}>
         <PrimaryButton
-          title={offer.isClaimed ? 'Claimed' : 'Claim'}
-          onPress={() => onClaim(offer)}
+          title={isClaimed ? 'Active' : 'Activate'}
+          onPress={() => onClaim(plan || (offer as OfferItem))}
           size="sm"
-          variant={offer.isClaimed ? 'secondary' : 'primary'}
-          disabled={offer.isClaimed}
+          variant={isClaimed ? 'secondary' : 'primary'}
+          disabled={isClaimed}
         />
       </View>
     </View>
@@ -138,7 +151,7 @@ const styles = StyleSheet.create({
   numbersRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.md,
+    gap: Spacing.sm,
     marginTop: 2,
   },
   statCol: {

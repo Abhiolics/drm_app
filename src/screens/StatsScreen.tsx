@@ -1,21 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
+  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { AlertCircle, TrendingUp, Sparkles } from 'lucide-react-native';
+import { TrendingUp, Sparkles, ShieldCheck } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Header } from '../components/Header';
-import { TabSelector } from '../components/TabSelector';
 import { OfferCard } from '../components/OfferCard';
 import { useBottomNavPadding } from '../components/CustomBottomNav';
-import { mockStatsData, mockOffers } from '../data/mockData';
-import { OfferItem } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { planService } from '../services/planService';
+import { withdrawalService } from '../services/withdrawalService';
+import { ApiPlan } from '../types';
 import { Colors } from '../theme/colors';
 import { BorderRadius, Spacing } from '../theme/spacing';
 import { Typography } from '../theme/typography';
@@ -23,187 +26,240 @@ import { Typography } from '../theme/typography';
 interface StatsScreenProps {
   onBack?: () => void;
   showBack?: boolean;
-  onNavigateToDeposit?: (offer?: OfferItem) => void;
+  onNavigateToDeposit?: (plan?: any) => void;
 }
-
-type OfferTier = 'Top Picks' | '100-199' | '200-299' | '300-500';
 
 export const StatsScreen: React.FC<StatsScreenProps> = ({
   onBack,
   showBack = false,
   onNavigateToDeposit,
 }) => {
-  const [activeTier, setActiveTier] = useState<OfferTier>('Top Picks');
-  const [offersList, setOffersList] = useState<OfferItem[]>(mockOffers);
+  const { user, wallet, refreshUser } = useAuth();
+  const [plans, setPlans] = useState<ApiPlan[]>([]);
+  const [totalWithdrawn, setTotalWithdrawn] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const bottomNavPadding = useBottomNavPadding();
 
-  const tierTabs: { id: OfferTier; label: string }[] = [
-    { id: 'Top Picks', label: 'Top Picks' },
-    { id: '100-199', label: '100-199' },
-    { id: '200-299', label: '200-299' },
-    { id: '300-500', label: '300-500' },
-  ];
+  useEffect(() => {
+    let isCancelled = false;
+    Promise.allSettled([
+      planService.getPlans(),
+      withdrawalService.getWithdrawalHistory(),
+    ]).then(([plansRes, withdrawalsRes]) => {
+      if (isCancelled) return;
+      if (plansRes.status === 'fulfilled' && Array.isArray(plansRes.value)) {
+        setPlans(plansRes.value);
+      }
+      if (withdrawalsRes.status === 'fulfilled' && Array.isArray(withdrawalsRes.value)) {
+        const approvedSum = withdrawalsRes.value
+          .filter((w: any) => w.status === 'approved')
+          .reduce((sum: number, w: any) => sum + (Number(w.amount) || 0), 0);
+        setTotalWithdrawn(approvedSum);
+      }
+      setIsLoading(false);
+    }).catch(() => {
+      if (!isCancelled) setIsLoading(false);
+    });
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
-  const filteredOffers = offersList.filter((off) => off.tier === activeTier);
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      const [plansRes, withdrawalsRes] = await Promise.allSettled([
+        planService.getPlans(),
+        withdrawalService.getWithdrawalHistory(),
+      ]);
 
-  const handleClaimOffer = (offer: OfferItem) => {
+      if (plansRes.status === 'fulfilled' && Array.isArray(plansRes.value)) {
+        setPlans(plansRes.value);
+      }
+
+      if (withdrawalsRes.status === 'fulfilled' && Array.isArray(withdrawalsRes.value)) {
+        const approvedSum = withdrawalsRes.value
+          .filter((w: any) => w.status === 'approved')
+          .reduce((sum: number, w: any) => sum + (Number(w.amount) || 0), 0);
+        setTotalWithdrawn(approvedSum);
+      }
+
+      await refreshUser();
+    } catch (error) {
+      console.warn('Failed to load stats data:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleActivatePlan = (selectedItem: any) => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } catch {
       // Fallback
     }
-    setOffersList((prev) =>
-      prev.map((o) => (o.id === offer.id ? { ...o, isClaimed: true } : o))
-    );
-    onNavigateToDeposit?.(offer);
+    onNavigateToDeposit?.(selectedItem);
   };
+
+  const currentPlanId = user?.plan?._id;
+  const balance = wallet?.balance ?? user?.wallet?.balance ?? 0;
+  const pendingBalance = wallet?.pendingBalance ?? user?.wallet?.pendingBalance ?? 0;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <StatusBar style="light" />
 
-      <Header title="Stats" showBack={showBack} onBack={onBack} centerTitle />
+      <Header title="VIP Stats" showBack={showBack} onBack={onBack} centerTitle />
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomNavPadding }]}
-      >
-        <View style={styles.contentContainer}>
-          {/* Top Hero Cashback Card matching reference */}
-          <View style={styles.heroCard}>
-            <LinearGradient
-              colors={['#241B4B', '#16132D', '#111019']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.heroGradient}
-            >
-              <View style={styles.heroTopRow}>
-                <View style={styles.heroTopLeft}>
-                  <Text style={[Typography.caption, styles.heroLabel]}>
-                    Cashback Rate
-                  </Text>
-                  <View style={styles.rateRow}>
-                    <Text
-                      style={[Typography.balance, styles.rateText]}
-                      numberOfLines={1}
-                      adjustsFontSizeToFit
-                      minimumFontScale={0.75}
-                    >
-                      {mockStatsData.cashbackRate}%
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Fetching membership stats...</Text>
+        </View>
+      ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomNavPadding }]}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              tintColor={Colors.primary}
+              colors={[Colors.primary]}
+            />
+          }
+        >
+          <View style={styles.contentContainer}>
+            {/* Top Hero Card with Live Balances */}
+            <View style={styles.heroCard}>
+              <LinearGradient
+                colors={['#241B4B', '#16132D', '#111019']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.heroGradient}
+              >
+                <View style={styles.heroTopRow}>
+                  <View style={styles.heroTopLeft}>
+                    <Text style={[Typography.caption, styles.heroLabel]}>
+                      Active Membership
                     </Text>
-                    <View style={styles.rateBadge}>
-                      <TrendingUp size={12} color={Colors.success} />
-                      <Text style={styles.rateBadgeText}>+0.4%</Text>
+                    <View style={styles.rateRow}>
+                      <Text
+                        style={[Typography.balance, styles.rateText]}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.75}
+                      >
+                        {user?.plan?.name || 'Standard Tier'}
+                      </Text>
+                      <View style={styles.rateBadge}>
+                        <TrendingUp size={12} color={Colors.success} />
+                        <Text style={styles.rateBadgeText}>Active</Text>
+                      </View>
                     </View>
+                  </View>
+
+                  {/* Sparkline Visual Illustration */}
+                  <View style={styles.chartBarsContainer}>
+                    <View style={[styles.chartBar, { height: 16 }]} />
+                    <View style={[styles.chartBar, { height: 26 }]} />
+                    <View style={[styles.chartBar, { height: 20 }]} />
+                    <View style={[styles.chartBar, { height: 36, backgroundColor: Colors.primary }]} />
+                    <View style={[styles.chartBar, { height: 44, backgroundColor: Colors.secondary }]} />
                   </View>
                 </View>
 
-                {/* Sparkline / Bar chart visual illustration */}
-                <View style={styles.chartBarsContainer}>
-                  <View style={[styles.chartBar, { height: 16 }]} />
-                  <View style={[styles.chartBar, { height: 26 }]} />
-                  <View style={[styles.chartBar, { height: 20 }]} />
-                  <View style={[styles.chartBar, { height: 36, backgroundColor: Colors.primary }]} />
-                  <View style={[styles.chartBar, { height: 44, backgroundColor: Colors.secondary }]} />
+                {/* Metrics Row: Balance, Repaid (Withdrawn), Pending */}
+                <View style={styles.heroMetricsBox}>
+                  <View style={styles.heroMetricItem}>
+                    <Text style={styles.metricName}>Live Balance</Text>
+                    <Text
+                      style={styles.metricVal}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.8}
+                    >
+                      ₹ {balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </Text>
+                  </View>
+
+                  <View style={styles.heroDivider} />
+
+                  <View style={styles.heroMetricItem}>
+                    <Text style={styles.metricName}>Settled Out</Text>
+                    <Text
+                      style={styles.metricVal}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.8}
+                    >
+                      ₹ {totalWithdrawn.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </Text>
+                  </View>
+
+                  <View style={styles.heroDivider} />
+
+                  <View style={styles.heroMetricItem}>
+                    <Text style={styles.metricName}>In Review</Text>
+                    <Text
+                      style={styles.metricVal}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.8}
+                    >
+                      ₹ {pendingBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-
-              {/* Metrics Row: Balance, Repaid, Pending */}
-              <View style={styles.heroMetricsBox}>
-                <View style={styles.heroMetricItem}>
-                  <Text style={styles.metricName}>Balance</Text>
-                  <Text
-                    style={styles.metricVal}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.8}
-                  >
-                    ₹ {mockStatsData.balance}
-                  </Text>
-                </View>
-
-                <View style={styles.heroDivider} />
-
-                <View style={styles.heroMetricItem}>
-                  <Text style={styles.metricName}>Repaid</Text>
-                  <Text
-                    style={styles.metricVal}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.8}
-                  >
-                    ₹ {mockStatsData.repaid}
-                  </Text>
-                </View>
-
-                <View style={styles.heroDivider} />
-
-                <View style={styles.heroMetricItem}>
-                  <Text style={styles.metricName}>Pending</Text>
-                  <Text
-                    style={styles.metricVal}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.8}
-                  >
-                    ₹ {mockStatsData.pending}
-                  </Text>
-                </View>
-              </View>
-            </LinearGradient>
-          </View>
-
-          {/* Warning / Announcement Banner matching reference */}
-          <View style={styles.noticeBanner}>
-            <View style={styles.noticeIconWrap}>
-              <AlertCircle size={15} color={Colors.warning} />
+              </LinearGradient>
             </View>
-            <Text style={styles.noticeText}>{mockStatsData.notice}</Text>
-          </View>
 
-          {/* Available Offers Section */}
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleRow}>
-              <Text style={[Typography.sectionTitle, styles.sectionTitleText]} numberOfLines={1}>
-                Available Offers
+            {/* Official Notice Banner */}
+            <View style={styles.noticeBanner}>
+              <View style={styles.noticeIconWrap}>
+                <ShieldCheck size={16} color={Colors.primary} />
+              </View>
+              <Text style={styles.noticeText}>
+                Active VIP tiers unlock high-yield daily tasks and instant zero-fee payout settlements.
               </Text>
-              <View style={styles.refreshesDailyBadge}>
-                <Sparkles size={10} color={Colors.primary} />
-                <Text style={styles.refreshesText}>Refreshes Daily</Text>
+            </View>
+
+            {/* Available Plans Section */}
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleRow}>
+                <Text style={[Typography.sectionTitle, styles.sectionTitleText]} numberOfLines={1}>
+                  Membership Plans
+                </Text>
+                <View style={styles.refreshesDailyBadge}>
+                  <Sparkles size={10} color={Colors.primary} />
+                  <Text style={styles.refreshesText}>Instant Activation</Text>
+                </View>
               </View>
             </View>
-          </View>
 
-          {/* Filter Pills */}
-          <View style={styles.filterPillsContainer}>
-            <TabSelector
-              tabs={tierTabs}
-              activeTab={activeTier}
-              onSelectTab={(tier) => setActiveTier(tier)}
-              variant="pills"
-            />
+            {/* Plan Cards */}
+            <View style={styles.offerList}>
+              {plans.length > 0 ? (
+                plans.map((plan) => (
+                  <OfferCard
+                    key={plan._id}
+                    plan={plan}
+                    isUserCurrentPlan={currentPlanId === plan._id}
+                    onClaim={handleActivatePlan}
+                  />
+                ))
+              ) : (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyText}>
+                    No plans available right now. Please check back later.
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
-
-          {/* Offer Cards */}
-          <View style={styles.offerList}>
-            {filteredOffers.length > 0 ? (
-              filteredOffers.map((offer) => (
-                <OfferCard
-                  key={offer.id}
-                  offer={offer}
-                  onClaim={handleClaimOffer}
-                />
-              ))
-            ) : (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyText}>
-                  No offers available in this tier right now.
-                </Text>
-              </View>
-            )}
-          </View>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 };
@@ -220,6 +276,17 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 600,
     alignSelf: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.xxl,
+  },
+  loadingText: {
+    color: Colors.textSecondary,
+    fontSize: 13,
+    marginTop: Spacing.sm,
   },
   heroCard: {
     borderRadius: BorderRadius.lg,
@@ -318,18 +385,17 @@ const styles = StyleSheet.create({
   },
   noticeBanner: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: 'rgba(255, 176, 32, 0.08)',
+    alignItems: 'center',
+    backgroundColor: 'rgba(124, 92, 252, 0.1)',
     borderRadius: BorderRadius.sm,
     paddingVertical: 10,
     paddingHorizontal: Spacing.md,
     marginBottom: Spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(255, 176, 32, 0.25)',
+    borderColor: 'rgba(124, 92, 252, 0.25)',
     gap: Spacing.xs,
   },
   noticeIconWrap: {
-    marginTop: 2,
     flexShrink: 0,
   },
   noticeText: {
@@ -368,12 +434,8 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
   },
-  filterPillsContainer: {
-    marginVertical: Spacing.xs,
-    marginBottom: Spacing.sm,
-  },
   offerList: {
-    marginTop: 2,
+    marginTop: 6,
   },
   emptyState: {
     padding: Spacing.xl,

@@ -15,7 +15,7 @@ import Animated, {
 import {
   Home,
   Receipt,
-  Award,
+  Plus,
   BarChart3,
   User,
 } from 'lucide-react-native';
@@ -23,7 +23,7 @@ import * as Haptics from 'expo-haptics';
 import { Colors } from '../theme/colors';
 import { BorderRadius, Spacing } from '../theme/spacing';
 
-export type TabName = 'Home' | 'Payments' | 'Tasks' | 'Stats' | 'Assets';
+export type TabName = 'Home' | 'Payments' | 'Account' | 'Stats' | 'Assets' | 'Tasks';
 
 export const useBottomNavPadding = () => {
   const insets = useSafeAreaInsets();
@@ -44,7 +44,7 @@ interface NavItemConfig {
 const NAV_ITEMS: NavItemConfig[] = [
   { id: 'Home', label: 'Home', icon: Home },
   { id: 'Payments', label: 'Payments', icon: Receipt },
-  { id: 'Tasks', label: 'Tasks', icon: Award },
+  { id: 'Account', label: 'Account', icon: Plus },
   { id: 'Stats', label: 'Stats', icon: BarChart3 },
   { id: 'Assets', label: 'Assets', icon: User },
 ];
@@ -56,6 +56,7 @@ const TabButton: React.FC<{
 }> = ({ item, isActive, onPress }) => {
   const scale = useSharedValue(isActive ? 1.08 : 1);
   const IconComp = item.icon;
+  const isCenter = item.id === 'Account';
 
   React.useEffect(() => {
     scale.value = withSpring(isActive ? 1.12 : 1, {
@@ -83,13 +84,26 @@ const TabButton: React.FC<{
       onPress={handlePress}
       style={styles.tabButton}
     >
-      <Animated.View style={[styles.iconWrapper, animatedStyle]}>
+      <Animated.View
+        style={[
+          styles.iconWrapper,
+          isCenter && styles.centerIconWrapper,
+          isCenter && isActive && styles.centerIconWrapperActive,
+          animatedStyle,
+        ]}
+      >
         <IconComp
-          size={22}
-          color={isActive ? Colors.primary : Colors.textMuted}
-          strokeWidth={isActive ? 2.4 : 1.8}
+          size={isCenter ? 24 : 22}
+          color={
+            isCenter
+              ? '#FFFFFF'
+              : isActive
+              ? Colors.primary
+              : Colors.textMuted
+          }
+          strokeWidth={isCenter ? 2.6 : isActive ? 2.4 : 1.8}
         />
-        {isActive && (
+        {isActive && !isCenter && (
           <View style={styles.activeDotContainer}>
             <View style={styles.activeDot} />
           </View>
@@ -190,5 +204,26 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 4,
+  },
+  centerIconWrapper: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#1E1B2C',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  centerIconWrapperActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+    shadowOpacity: 0.6,
+    shadowRadius: 8,
   },
 });

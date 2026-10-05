@@ -13,9 +13,13 @@ import { AssetsScreen } from '../screens/AssetsScreen';
 import { TeamsScreen } from '../screens/TeamsScreen';
 import { ServiceScreen } from '../screens/ServiceScreen';
 import { DepositScreen } from '../screens/DepositScreen';
+import { AccountScreen } from '../screens/AccountScreen';
+import { GiftRewardScreen } from '../screens/GiftRewardScreen';
 import { SplashScreen } from '../screens/SplashScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { PaymentItem, TaskItem, OfferItem } from '../types';
+
+import { AuthProvider, useAuth } from '../context/AuthContext';
 
 export type RootStackParamList = {
   MainTabs: undefined;
@@ -24,6 +28,8 @@ export type RootStackParamList = {
   Teams: undefined;
   Service: undefined;
   Deposit: { offer?: OfferItem };
+  Account: undefined;
+  GiftReward: undefined;
 };
 
 function MainTabsScreen({
@@ -34,6 +40,8 @@ function MainTabsScreen({
   onNavigateToTeams,
   onNavigateToService,
   onNavigateToDeposit,
+  onNavigateToAccount,
+  onNavigateToGiftReward,
   onLogout,
 }: {
   currentTab: TabName;
@@ -43,6 +51,8 @@ function MainTabsScreen({
   onNavigateToTeams: () => void;
   onNavigateToService: () => void;
   onNavigateToDeposit: (offer?: OfferItem) => void;
+  onNavigateToAccount: () => void;
+  onNavigateToGiftReward: () => void;
   onLogout: () => void;
 }) {
   const renderScreen = () => {
@@ -68,7 +78,13 @@ function MainTabsScreen({
         return (
           <TaskRewardsScreen
             onBack={() => onSelectTab('Home')}
-            showBack={false}
+            showBack={true}
+          />
+        );
+      case 'Account':
+        return (
+          <AccountScreen
+            onBack={() => onSelectTab('Home')}
           />
         );
       case 'Stats':
@@ -85,6 +101,9 @@ function MainTabsScreen({
             onBack={() => onSelectTab('Home')}
             onNavigateToHome={() => onSelectTab('Home')}
             onNavigateToService={onNavigateToService}
+            onNavigateToGiftReward={onNavigateToGiftReward}
+            onNavigateToDeposit={() => onNavigateToDeposit()}
+            onNavigateToHistory={() => onSelectTab('Payments')}
             onLogout={onLogout}
             showBack={false}
           />
@@ -97,23 +116,32 @@ function MainTabsScreen({
   return (
     <View style={styles.tabWrapper}>
       {renderScreen()}
-      <CustomBottomNav currentTab={currentTab} onSelectTab={onSelectTab} />
+      <CustomBottomNav
+        currentTab={currentTab}
+        onSelectTab={(tab) => {
+          if (tab === 'Account') {
+            onNavigateToAccount();
+          } else {
+            onSelectTab(tab);
+          }
+        }}
+      />
     </View>
   );
 }
 
-export const AppNavigator: React.FC = () => {
+const AppNavigatorInner: React.FC = () => {
+  const { isLoggedIn, isLoading, logout } = useAuth();
   const [showSplash, setShowSplash] = useState(true);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentTab, setCurrentTab] = useState<TabName>('Home');
   const [activePaymentItem, setActivePaymentItem] = useState<PaymentItem | undefined>();
   const [activeTaskItem, setActiveTaskItem] = useState<TaskItem | undefined>();
   const [activeOffer, setActiveOffer] = useState<OfferItem | undefined>();
   const [currentStackRoute, setCurrentStackRoute] = useState<
-    'Tabs' | 'PaymentDetail' | 'TaskDetail' | 'Teams' | 'Service' | 'Deposit'
+    'Tabs' | 'PaymentDetail' | 'TaskDetail' | 'Teams' | 'Service' | 'Deposit' | 'Account' | 'GiftReward'
   >('Tabs');
 
-  if (showSplash) {
+  if (showSplash || isLoading) {
     return <SplashScreen onFinish={() => setShowSplash(false)} />;
   }
 
@@ -121,7 +149,6 @@ export const AppNavigator: React.FC = () => {
     return (
       <LoginScreen
         onLoginSuccess={() => {
-          setIsLoggedIn(true);
           setCurrentTab('Home');
           setCurrentStackRoute('Tabs');
         }}
@@ -172,8 +199,14 @@ export const AppNavigator: React.FC = () => {
               setActiveOffer(offer);
               setCurrentStackRoute('Deposit');
             }}
-            onLogout={() => {
-              setIsLoggedIn(false);
+            onNavigateToAccount={() => {
+              setCurrentStackRoute('Account');
+            }}
+            onNavigateToGiftReward={() => {
+              setCurrentStackRoute('GiftReward');
+            }}
+            onLogout={async () => {
+              await logout();
               setCurrentTab('Home');
               setCurrentStackRoute('Tabs');
             }}
@@ -212,8 +245,28 @@ export const AppNavigator: React.FC = () => {
             offer={activeOffer}
           />
         )}
+
+        {currentStackRoute === 'Account' && (
+          <AccountScreen
+            onBack={() => setCurrentStackRoute('Tabs')}
+          />
+        )}
+
+        {currentStackRoute === 'GiftReward' && (
+          <GiftRewardScreen
+            onBack={() => setCurrentStackRoute('Tabs')}
+          />
+        )}
       </View>
     </NavigationContainer>
+  );
+};
+
+export const AppNavigator: React.FC = () => {
+  return (
+    <AuthProvider>
+      <AppNavigatorInner />
+    </AuthProvider>
   );
 };
 
@@ -226,3 +279,4 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
+

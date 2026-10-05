@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,48 +6,96 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
-import { X, Bell, CheckCheck, ShieldAlert, ArrowDownLeft } from 'lucide-react-native';
+import {
+  X,
+  Bell,
+  CheckCheck,
+  ShieldAlert,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Gift,
+  Award,
+} from 'lucide-react-native';
 import { Colors } from '../theme/colors';
 import { BorderRadius, Spacing } from '../theme/spacing';
 import { Typography } from '../theme/typography';
+import { notificationService } from '../services/notificationService';
+import { useAuth } from '../context/AuthContext';
+import { ApiNotification } from '../types';
 
 interface NotificationModalProps {
   visible: boolean;
   onClose: () => void;
 }
 
-const notifications = [
-  {
-    id: 'n1',
-    title: 'Settlement Credited',
-    message: '₹ 2,000.00 successfully settled to your DRM wallet via IMPS UPI Direct.',
-    time: '15m ago',
-    icon: ArrowDownLeft,
-    color: Colors.success,
-  },
-  {
-    id: 'n2',
-    title: 'Daily Bonus Active',
-    message: 'Today reading incentive bonus is live. Complete sessions to earn +100 Pts.',
-    time: '1h ago',
-    icon: Bell,
-    color: Colors.primary,
-  },
-  {
-    id: 'n3',
-    title: 'Security Verification',
-    message: 'New wallet payout node registered from device DRM-Mobile-App.',
-    time: 'Yesterday',
-    icon: ShieldAlert,
-    color: Colors.secondary,
-  },
-];
-
 export const NotificationModal: React.FC<NotificationModalProps> = ({
   visible,
   onClose,
 }) => {
+  const { refreshUser } = useAuth();
+  const [notifications, setNotifications] = useState<ApiNotification[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isMarking, setIsMarking] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      loadNotifications();
+    }
+  }, [visible]);
+
+  const loadNotifications = async () => {
+    setIsLoading(true);
+    try {
+      const res = await notificationService.getNotifications();
+      if (Array.isArray(res)) {
+        setNotifications(res);
+      }
+    } catch (e) {
+      console.warn('Failed to load notifications:', e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    setIsMarking(true);
+    try {
+      await notificationService.markAllAsRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      await refreshUser();
+    } catch (e) {
+      console.warn('Failed to mark all notifications read:', e);
+    } finally {
+      setIsMarking(false);
+    }
+  };
+
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'deposit':
+        return { icon: ArrowDownLeft, color: Colors.success };
+      case 'withdrawal':
+        return { icon: ArrowUpRight, color: Colors.danger };
+      case 'task':
+        return { icon: Award, color: Colors.primary };
+      case 'gift_code':
+        return { icon: Gift, color: '#FFA500' };
+      default:
+        return { icon: Bell, color: Colors.secondary };
+    }
+  };
+
+  const formatNotificationTime = (dateStr: string) => {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return `${d.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+    })} ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`;
+  };
+
   return (
     <Modal
       visible={visible}
@@ -73,41 +121,77 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
-            {notifications.map((item) => {
-              const IconComp = item.icon;
-              return (
-                <View key={item.id} style={styles.item}>
-                  <View
-                    style={[
-                      styles.iconCircle,
-                      { backgroundColor: `${item.color}20` },
-                    ]}
-                  >
-                    <IconComp size={16} color={item.color} />
-                  </View>
-                  <View style={styles.itemContent}>
-                    <View style={styles.itemHeader}>
-                      <Text style={[Typography.bodySemiBold, styles.itemTitle]}>
-                        {item.title}
-                      </Text>
-                      <Text style={styles.itemTime}>{item.time}</Text>
-                    </View>
-                    <Text style={styles.itemMessage}>{item.message}</Text>
-                  </View>
+          {isLoading ? (
+            <View style={styles.loadingBox}>
+              <ActivityIndicator size="small" color={Colors.primary} />
+              <Text style={styles.loadingText}>Fetching notifications...</Text>
+            </View>
+          ) : (
+            <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
+              {notifications.length === 0 ? (
+                <View style={styles.emptyBox}>
+                  <Bell size={28} color={Colors.textMuted} style={{ marginBottom: 8 }} />
+                  <Text style={styles.emptyTitle}>No Notifications</Text>
+                  <Text style={styles.emptyDesc}>
+                    {"You're all caught up! Updates regarding deposits and rewards will appear here."}
+                  </Text>
                 </View>
-              );
-            })}
-          </ScrollView>
+              ) : (
+                notifications.map((item) => {
+                  const { icon: IconComp, color } = getNotificationIcon(item.type);
+                  return (
+                    <View
+                      key={item._id}
+                      style={[
+                        styles.item,
+                        !item.isRead && styles.unreadItem,
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.iconCircle,
+                          { backgroundColor: `${color}20` },
+                        ]}
+                      >
+                        <IconComp size={16} color={color} />
+                      </View>
+                      <View style={styles.itemContent}>
+                        <View style={styles.itemHeader}>
+                          <Text
+                            style={[
+                              Typography.bodySemiBold,
+                              styles.itemTitle,
+                              !item.isRead && { color: Colors.textPrimary },
+                            ]}
+                          >
+                            {item.title}
+                          </Text>
+                          <Text style={styles.itemTime}>
+                            {formatNotificationTime(item.createdAt)}
+                          </Text>
+                        </View>
+                        <Text style={styles.itemMessage}>{item.message}</Text>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+            </ScrollView>
+          )}
 
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={onClose}
-            style={styles.markReadBtn}
-          >
-            <CheckCheck size={16} color={Colors.primary} />
-            <Text style={styles.markReadText}>Mark all as read</Text>
-          </TouchableOpacity>
+          {notifications.length > 0 && (
+            <TouchableOpacity
+              activeOpacity={0.8}
+              disabled={isMarking}
+              onPress={handleMarkAllRead}
+              style={styles.markReadBtn}
+            >
+              <CheckCheck size={16} color={Colors.primary} />
+              <Text style={styles.markReadText}>
+                {isMarking ? 'Marking...' : 'Mark all as read'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </Modal>
@@ -117,14 +201,14 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.75)',
+    backgroundColor: 'rgba(0,0,0,0.78)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: Spacing.lg,
   },
   dialog: {
     width: '100%',
-    maxHeight: '75%',
+    maxHeight: '78%',
     backgroundColor: Colors.surfaceElevated,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
@@ -151,8 +235,36 @@ const styles = StyleSheet.create({
   closeBtn: {
     padding: 4,
   },
+  loadingBox: {
+    paddingVertical: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    color: Colors.textSecondary,
+    fontSize: 12,
+    marginTop: 8,
+  },
   list: {
-    maxHeight: 360,
+    maxHeight: 380,
+  },
+  emptyBox: {
+    paddingVertical: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.md,
+  },
+  emptyTitle: {
+    color: Colors.textPrimary,
+    fontWeight: '700',
+    fontSize: 15,
+    marginBottom: 4,
+  },
+  emptyDesc: {
+    color: Colors.textMuted,
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 18,
   },
   item: {
     flexDirection: 'row',
@@ -163,6 +275,10 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xs,
     borderWidth: 1,
     borderColor: Colors.borderSubtle,
+  },
+  unreadItem: {
+    borderColor: Colors.borderAccent,
+    backgroundColor: 'rgba(124, 92, 252, 0.08)',
   },
   iconCircle: {
     width: 32,
@@ -183,6 +299,7 @@ const styles = StyleSheet.create({
   },
   itemTitle: {
     color: Colors.textPrimary,
+    fontSize: 13,
   },
   itemTime: {
     color: Colors.textMuted,

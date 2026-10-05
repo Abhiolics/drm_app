@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -15,6 +16,7 @@ import {
   Banknote,
   TrendingUp,
   Users,
+  Receipt,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -26,11 +28,11 @@ import { TransactionItem } from '../components/TransactionItem';
 import { PaymentDetailModal } from '../components/PaymentDetailModal';
 import { NotificationModal } from '../components/NotificationModal';
 import { useBottomNavPadding } from '../components/CustomBottomNav';
-import {
-  mockUserProfile,
-  mockTransactions,
-} from '../data/mockData';
-import { Transaction } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { walletService } from '../services/walletService';
+import { depositService } from '../services/depositService';
+import { withdrawalService } from '../services/withdrawalService';
+import { Transaction, TransactionType, TransactionStatus, ApiTransaction } from '../types';
 
 interface HomeScreenProps {
   onNavigateToPayments?: () => void;
@@ -47,9 +49,167 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigateToAssets,
   onNavigateToTeams,
 }) => {
+  const { user, wallet, unreadNotifications, refreshUser } = useAuth();
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
+  const [depositSum, setDepositSum] = useState<number>(0);
+  const [withdrawalSum, setWithdrawalSum] = useState<number>(0);
+  const [refreshing, setRefreshing] = useState(false);
   const bottomNavPadding = useBottomNavPadding();
+
+  useEffect(() => {
+    let isCancelled = false;
+    Promise.allSettled([
+      walletService.getTransactions({ limit: 5 }),
+      depositService.getDepositHistory(),
+      withdrawalService.getWithdrawalHistory(),
+    ]).then(([txRes, depRes, withRes]) => {
+      if (isCancelled) return;
+      if (depRes.status === 'fulfilled' && Array.isArray(depRes.value)) {
+        const approvedDeposits = depRes.value
+          .filter((d) => d.status === 'approved')
+          .reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+        setDepositSum(approvedDeposits);
+      }
+      if (withRes.status === 'fulfilled' && Array.isArray(withRes.value)) {
+        const approvedWithdrawals = withRes.value
+          .filter((w) => w.status === 'approved')
+          .reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
+        setWithdrawalSum(approvedWithdrawals);
+      }
+      if (txRes.status === 'fulfilled' && txRes.value?.transactions) {
+        const mapped: Transaction[] = txRes.value.transactions.map((tx: ApiTransaction) => {
+          const isPos = tx.type === 'credit';
+          const dateObj = new Date(tx.createdAt);
+          const formattedDate = !isNaN(dateObj.getTime())
+            ? dateObj.toLocaleDateString('en-IN', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+              }) +
+              ' ' +
+              dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+            : tx.createdAt;
+
+          return {
+            id: tx._id,
+            orderCode: tx._id.slice(-6).toUpperCase(),
+            title:
+              tx.description ||
+              (tx.category === 'deposit'
+                ? 'Deposit INR'
+                : tx.category === 'withdrawal'
+                ? 'Withdrawal Payout'
+                : 'Task Reward'),
+            type: (isPos ? 'deposit' : 'withdrawal') as TransactionType,
+            date: formattedDate,
+            rawDate: tx.createdAt,
+            amount: tx.amount,
+            formattedAmount: `${isPos ? '+ ' : '- '}₹ ${Number(tx.amount).toFixed(2)}`,
+            isPositive: isPos,
+            status: (tx.status === 'completed'
+              ? 'Completed'
+              : tx.status === 'pending'
+              ? 'Pending'
+              : 'Failed') as TransactionStatus,
+            paymentMethod:
+              tx.category === 'deposit'
+                ? 'UPI Direct Deposit'
+                : tx.category === 'withdrawal'
+                ? 'Bank Payout'
+                : 'Task Incentive',
+            fee: 0,
+            recipientOrSender: 'DreamPay Settlement Gateway',
+          };
+        });
+        setRecentTransactions(mapped);
+      }
+    });
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {
+      // Fallback
+    }
+    try {
+      const [depRes, withRes, txRes] = await Promise.allSettled([
+        depositService.getDepositHistory(),
+        withdrawalService.getWithdrawalHistory(),
+        walletService.getTransactions({ limit: 5 }),
+      ]);
+      if (depRes.status === 'fulfilled' && Array.isArray(depRes.value)) {
+        const approvedDeposits = depRes.value
+          .filter((d) => d.status === 'approved')
+          .reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+        setDepositSum(approvedDeposits);
+      }
+      if (withRes.status === 'fulfilled' && Array.isArray(withRes.value)) {
+        const approvedWithdrawals = withRes.value
+          .filter((w) => w.status === 'approved')
+          .reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
+        setWithdrawalSum(approvedWithdrawals);
+      }
+      if (txRes.status === 'fulfilled' && txRes.value?.transactions) {
+        const mapped: Transaction[] = txRes.value.transactions.map((tx: ApiTransaction) => {
+          const isPos = tx.type === 'credit';
+          const dateObj = new Date(tx.createdAt);
+          const formattedDate = !isNaN(dateObj.getTime())
+            ? dateObj.toLocaleDateString('en-IN', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+              }) +
+              ' ' +
+              dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+            : tx.createdAt;
+
+          return {
+            id: tx._id,
+            orderCode: tx._id.slice(-6).toUpperCase(),
+            title:
+              tx.description ||
+              (tx.category === 'deposit'
+                ? 'Deposit INR'
+                : tx.category === 'withdrawal'
+                ? 'Withdrawal Payout'
+                : 'Task Reward'),
+            type: (isPos ? 'deposit' : 'withdrawal') as TransactionType,
+            date: formattedDate,
+            rawDate: tx.createdAt,
+            amount: tx.amount,
+            formattedAmount: `${isPos ? '+ ' : '- '}₹ ${Number(tx.amount).toFixed(2)}`,
+            isPositive: isPos,
+            status: (tx.status === 'completed'
+              ? 'Completed'
+              : tx.status === 'pending'
+              ? 'Pending'
+              : 'Failed') as TransactionStatus,
+            paymentMethod:
+              tx.category === 'deposit'
+                ? 'UPI Direct Deposit'
+                : tx.category === 'withdrawal'
+                ? 'Bank Payout'
+                : 'Task Incentive',
+            fee: 0,
+            recipientOrSender: 'DreamPay Settlement Gateway',
+          };
+        });
+        setRecentTransactions(mapped);
+      }
+      await refreshUser();
+    } catch {
+      // Fallback
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const quickActions = [
     { id: 'tasks', label: 'Tasks', icon: Award, action: onNavigateToTasks },
@@ -67,6 +227,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     actionFn?.();
   };
 
+  const displayName = user?.fullName || 'DreamPay User';
+  const displayId = (user?._id || user?.id || '21833').slice(-6).toUpperCase();
+  const avatarLetter = (displayName || 'U').charAt(0).toUpperCase();
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <StatusBar style="light" />
@@ -80,17 +244,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         >
           <View style={styles.avatarBorder}>
             <View style={styles.avatarInner}>
-              <Text style={styles.avatarInitial}>
-                {mockUserProfile.avatarInitials}
-              </Text>
+              <Text style={styles.avatarInitial}>{avatarLetter}</Text>
             </View>
           </View>
           <View style={styles.profileInfo}>
             <Text style={[Typography.bodySemiBold, styles.username]}>
-              {mockUserProfile.username}
+              {displayName}
             </Text>
             <Text style={[Typography.captionSmall, styles.userId]}>
-              ID: {mockUserProfile.userId}
+              ID: {displayId}
             </Text>
           </View>
         </TouchableOpacity>
@@ -102,7 +264,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Bell size={20} color={Colors.textPrimary} />
-          {mockUserProfile.unreadNotifications > 0 && (
+          {unreadNotifications > 0 && (
             <View style={styles.notificationDot} />
           )}
         </TouchableOpacity>
@@ -111,12 +273,20 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       <ScrollView
         showsVerticalScrollIndicator={false}
         stickyHeaderIndices={[0]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.primary}
+            colors={[Colors.primary]}
+          />
+        }
         contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomNavPadding }]}
       >
         {/* Sticky Big Balance Card Container */}
         <View style={styles.stickyCardWrapper}>
           <View style={styles.stickyInnerContainer}>
-            {/* Main Balance Card matching reference */}
+            {/* Main Balance Card */}
             <GlassCard elevated borderAccent style={styles.balanceCard}>
               <Text style={[Typography.captionSmall, styles.balanceLabel]}>
                 AVAILABLE BALANCE
@@ -129,7 +299,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   adjustsFontSizeToFit
                   minimumFontScale={0.75}
                 >
-                  ₹ {mockUserProfile.availableBalance.toLocaleString('en-IN', {
+                  ₹ {wallet.balance.toLocaleString('en-IN', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}
@@ -167,7 +337,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     adjustsFontSizeToFit
                     minimumFontScale={0.8}
                   >
-                    ₹ {mockUserProfile.depositSum.toLocaleString('en-IN')}
+                    ₹ {depositSum.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </Text>
                 </View>
 
@@ -184,7 +354,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     adjustsFontSizeToFit
                     minimumFontScale={0.8}
                   >
-                    ₹ {mockUserProfile.withdrawalSum.toLocaleString('en-IN')}
+                    ₹ {withdrawalSum.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </Text>
                 </View>
               </View>
@@ -233,13 +403,23 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </View>
 
             <View style={styles.transactionList}>
-              {mockTransactions.map((tx) => (
-                <TransactionItem
-                  key={tx.id}
-                  transaction={tx}
-                  onPress={(item) => setSelectedTx(item)}
-                />
-              ))}
+              {recentTransactions.length === 0 ? (
+                <View style={styles.emptyTxBox}>
+                  <Receipt size={32} color={Colors.textMuted} style={{ marginBottom: 8 }} />
+                  <Text style={styles.emptyTxText}>No transactions yet</Text>
+                  <Text style={styles.emptyTxSub}>
+                    Your deposits, withdrawals, and task earnings will appear here.
+                  </Text>
+                </View>
+              ) : (
+                recentTransactions.map((tx) => (
+                  <TransactionItem
+                    key={tx.id}
+                    transaction={tx}
+                    onPress={(item) => setSelectedTx(item)}
+                  />
+                ))
+              )}
             </View>
           </View>
         </View>
@@ -255,7 +435,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       {/* Notifications Modal */}
       <NotificationModal
         visible={showNotifications}
-        onClose={() => setShowNotifications(false)}
+        onClose={() => {
+          setShowNotifications(false);
+          refreshUser();
+        }}
       />
     </SafeAreaView>
   );
@@ -309,80 +492,73 @@ const styles = StyleSheet.create({
   },
   userId: {
     color: Colors.textMuted,
-    marginTop: 2,
   },
   notificationBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.full,
     backgroundColor: Colors.surfaceElevated,
-    alignItems: 'center',
-    justifyContent: 'center',
     borderWidth: 1,
     borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
     position: 'relative',
   },
   notificationDot: {
+    position: 'absolute',
+    top: 9,
+    right: 9,
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: Colors.danger,
-    position: 'absolute',
-    top: 8,
-    right: 8,
+    borderWidth: 1.5,
+    borderColor: Colors.surfaceElevated,
   },
   scrollContent: {
-    paddingHorizontal: 0,
+    flexGrow: 1,
   },
   stickyCardWrapper: {
     width: '100%',
     backgroundColor: Colors.background,
-    zIndex: 100,
-    elevation: 6,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+    zIndex: 10,
+    paddingTop: Spacing.xs,
+    paddingBottom: Spacing.sm,
   },
   stickyInnerContainer: {
     width: '100%',
     maxWidth: 600,
     alignSelf: 'center',
     paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.xs,
-    paddingBottom: Spacing.sm,
-  },
-  scrollableContent: {
-    width: '100%',
-  },
-  scrollableInnerContainer: {
-    width: '100%',
-    maxWidth: 600,
-    alignSelf: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.sm,
   },
   balanceCard: {
-    marginTop: 0,
-    padding: Spacing.md,
+    padding: Spacing.lg,
+    width: '100%',
   },
   balanceLabel: {
-    color: Colors.textSecondary,
-    fontWeight: '600',
-    letterSpacing: 1,
-    fontSize: 11,
+    color: Colors.textMuted,
+    letterSpacing: 1.2,
+    fontWeight: '700',
+    marginBottom: Spacing.xs,
   },
   balanceRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: Spacing.xs,
+    alignItems: 'baseline',
     marginBottom: Spacing.md,
   },
   balanceAmount: {
     color: Colors.textPrimary,
+    fontWeight: '800',
   },
   viewDetailsBtn: {
     borderRadius: BorderRadius.full,
     overflow: 'hidden',
     marginBottom: Spacing.md,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   viewDetailsGradient: {
     flexDirection: 'row',
@@ -393,24 +569,27 @@ const styles = StyleSheet.create({
   },
   viewDetailsText: {
     color: '#FFFFFF',
-    marginRight: 4,
+    marginRight: 6,
+    fontWeight: '700',
   },
   metricsBox: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(0, 0, 0, 0.25)',
-    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.surfaceElevated,
+    borderRadius: BorderRadius.md,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
     borderWidth: 1,
     borderColor: Colors.borderSubtle,
+    alignItems: 'center',
   },
   metricItem: {
     flex: 1,
+    alignItems: 'center',
   },
   metricTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   statusDot: {
     width: 6,
@@ -419,49 +598,57 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   metricItemLabel: {
-    color: Colors.textSecondary,
-    fontSize: 11,
-    fontWeight: '500',
+    ...Typography.captionSmall,
+    color: Colors.textMuted,
   },
   metricItemValue: {
     color: Colors.textPrimary,
+    fontWeight: '700',
   },
   metricDivider: {
     width: 1,
-    backgroundColor: Colors.borderSubtle,
-    marginHorizontal: Spacing.md,
+    height: 24,
+    backgroundColor: Colors.border,
+    marginHorizontal: Spacing.xs,
+  },
+  scrollableContent: {
+    width: '100%',
+  },
+  scrollableInnerContainer: {
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center',
+    paddingHorizontal: Spacing.md,
   },
   actionGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: Spacing.md,
-    marginBottom: Spacing.md,
+    marginVertical: Spacing.md,
   },
   actionItem: {
     flex: 1,
     alignItems: 'center',
   },
   actionIconBox: {
-    width: 54,
-    height: 54,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.surfaceElevated,
     borderWidth: 1,
     borderColor: Colors.border,
-    marginBottom: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.xs,
   },
   actionLabel: {
     color: Colors.textSecondary,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   sectionHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: Spacing.xs,
-    marginBottom: Spacing.xs,
+    justifyContent: 'space-between',
+    marginBottom: Spacing.sm,
   },
   sectionTitleText: {
     color: Colors.textPrimary,
@@ -469,14 +656,35 @@ const styles = StyleSheet.create({
   seeAllBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 4,
   },
   seeAllText: {
+    ...Typography.caption,
     color: Colors.primary,
-    fontSize: 12,
-    fontWeight: '600',
     marginRight: 2,
+    fontWeight: '600',
   },
   transactionList: {
+    gap: 8,
+  },
+  emptyTxBox: {
+    padding: Spacing.xl,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+    marginVertical: Spacing.md,
+  },
+  emptyTxText: {
+    color: Colors.textPrimary,
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  emptyTxSub: {
+    color: Colors.textMuted,
+    fontSize: 12,
+    textAlign: 'center',
     marginTop: 4,
   },
 });

@@ -130,7 +130,7 @@ export const PaymentDetailModal: React.FC<PaymentDetailModalProps> = ({
 
               <View style={styles.row}>
                 <Text style={styles.label}>Settlement Node</Text>
-                <Text style={styles.value}>DRM-V2-SECURE-NODE</Text>
+                <Text style={styles.value}>DREAMPAY-V2-SECURE-NODE</Text>
               </View>
             </View>
 

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "PayApp",
+    "name": "DreamPay",
     "slug": "payapp",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -8,10 +8,10 @@
     "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.abhiolics.payapp"
+      "bundleIdentifier": "com.abhiolics.dreampay"
     },
     "android": {
-      "package": "com.abhiolics.payapp",
+      "package": "com.abhiolics.dreampay",
       "adaptiveIcon": {
         "backgroundColor": "#09080D",
         "foregroundImage": "./assets/android-icon-foreground.png",

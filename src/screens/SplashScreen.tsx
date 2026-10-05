@@ -48,7 +48,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
 
         {/* Brand Name */}
         <View style={styles.brandRow}>
-          <Text style={styles.brandName}>PayApp</Text>
+          <Text style={styles.brandName}>DreamPay</Text>
           <View style={styles.sparkleWrap}>
             <Sparkles size={16} color={Colors.primary} />
           </View>

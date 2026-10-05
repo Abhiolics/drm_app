@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   Modal,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -24,44 +25,152 @@ import {
   ChevronRight,
   LogOut,
   AlertTriangle,
+  Gift,
+  FileText,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { Header } from '../components/Header';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { useBottomNavPadding } from '../components/CustomBottomNav';
+import { useAuth } from '../context/AuthContext';
+import { depositService } from '../services/depositService';
+import { withdrawalService } from '../services/withdrawalService';
 import { Colors } from '../theme/colors';
 import { BorderRadius, Spacing } from '../theme/spacing';
 import { Typography } from '../theme/typography';
-import { mockUserProfile, mockAssetServiceGrid } from '../data/mockData';
 
 interface AssetsScreenProps {
   onBack?: () => void;
   showBack?: boolean;
   onNavigateToHome?: () => void;
   onNavigateToService?: () => void;
+  onNavigateToGiftReward?: () => void;
+  onNavigateToDeposit?: () => void;
+  onNavigateToHistory?: () => void;
   onLogout?: () => void;
 }
+
+const assetMenuGrid = [
+  {
+    id: 'giftcode',
+    title: 'Gift Codes',
+    subtitle: 'Redeem Bonus',
+    icon: 'Gift',
+  },
+  {
+    id: 'service',
+    title: 'Support',
+    subtitle: '24/7 Help Desk',
+    icon: 'Headphones',
+  },
+  {
+    id: 'deposits',
+    title: 'Deposit Records',
+    subtitle: 'Passbook Log',
+    icon: 'ArrowDownToLine',
+  },
+  {
+    id: 'withdrawals',
+    title: 'Withdrawals',
+    subtitle: 'Payout History',
+    icon: 'ArrowUpFromLine',
+  },
+  {
+    id: 'security',
+    title: 'Security',
+    subtitle: 'Node Verified',
+    icon: 'ShieldCheck',
+  },
+  {
+    id: 'account',
+    title: 'Settings',
+    subtitle: 'System Profile',
+    icon: 'Sliders',
+  },
+];
 
 export const AssetsScreen: React.FC<AssetsScreenProps> = ({
   onBack,
   showBack = false,
   onNavigateToHome,
   onNavigateToService,
+  onNavigateToGiftReward,
+  onNavigateToDeposit,
+  onNavigateToHistory,
   onLogout,
 }) => {
+  const { user, wallet, refreshUser, logout } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [depositSum, setDepositSum] = useState(0);
+  const [withdrawalSum, setWithdrawalSum] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const bottomNavPadding = useBottomNavPadding();
+
+  useEffect(() => {
+    let isCancelled = false;
+    Promise.allSettled([
+      depositService.getDepositHistory(),
+      withdrawalService.getWithdrawalHistory(),
+    ]).then(([depRes, withRes]) => {
+      if (isCancelled) return;
+      if (depRes.status === 'fulfilled' && Array.isArray(depRes.value)) {
+        const approvedDep = depRes.value
+          .filter((d: any) => d.status === 'approved')
+          .reduce((sum: number, d: any) => sum + (Number(d.amount) || 0), 0);
+        setDepositSum(approvedDep);
+      }
+      if (withRes.status === 'fulfilled' && Array.isArray(withRes.value)) {
+        const approvedWith = withRes.value
+          .filter((w: any) => w.status === 'approved')
+          .reduce((sum: number, w: any) => sum + (Number(w.amount) || 0), 0);
+        setWithdrawalSum(approvedWith);
+      }
+    });
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      const [depRes, withRes] = await Promise.allSettled([
+        depositService.getDepositHistory(),
+        withdrawalService.getWithdrawalHistory(),
+      ]);
+
+      if (depRes.status === 'fulfilled' && Array.isArray(depRes.value)) {
+        const approvedDep = depRes.value
+          .filter((d: any) => d.status === 'approved')
+          .reduce((sum: number, d: any) => sum + (Number(d.amount) || 0), 0);
+        setDepositSum(approvedDep);
+      }
+
+      if (withRes.status === 'fulfilled' && Array.isArray(withRes.value)) {
+        const approvedWith = withRes.value
+          .filter((w: any) => w.status === 'approved')
+          .reduce((sum: number, w: any) => sum + (Number(w.amount) || 0), 0);
+        setWithdrawalSum(approvedWith);
+      }
+
+      await refreshUser();
+    } catch (err) {
+      console.warn('Failed to load asset financial totals:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const getServiceIcon = (iconName: string) => {
     switch (iconName) {
-      case 'Wallet':
-        return Wallet;
-      case 'Sparkles':
-        return Sparkles;
+      case 'Gift':
+        return Gift;
       case 'Headphones':
         return Headphones;
-      case 'Mail':
-        return Mail;
+      case 'ArrowDownToLine':
+        return ArrowDownToLine;
+      case 'ArrowUpFromLine':
+        return ArrowUpFromLine;
       case 'ShieldCheck':
         return ShieldCheck;
       case 'Sliders':
@@ -70,13 +179,27 @@ export const AssetsScreen: React.FC<AssetsScreenProps> = ({
     }
   };
 
-  const handleTilePress = (title: string) => {
+  const handleTilePress = (item: (typeof assetMenuGrid)[0]) => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch {
       // Fallback
     }
-    Alert.alert(title, `Opening ${title} management center.`);
+
+    if (item.id === 'service') {
+      onNavigateToService?.();
+    } else if (item.id === 'giftcode') {
+      onNavigateToGiftReward?.();
+    } else if (item.id === 'deposits' || item.id === 'withdrawals') {
+      onNavigateToHistory?.();
+    } else if (item.id === 'security') {
+      Alert.alert(
+        'DreamPay Security Node',
+        'End-to-end encrypted session connected to live production cloud cluster (SSL TLS 1.3). Account status: Active.'
+      );
+    } else {
+      Alert.alert(item.title, `DreamPay Client Version 1.0.0. All systems operating normally.`);
+    }
   };
 
   const handleLogoutPress = () => {
@@ -88,15 +211,21 @@ export const AssetsScreen: React.FC<AssetsScreenProps> = ({
     setShowLogoutModal(true);
   };
 
-  const handleConfirmLogout = () => {
+  const handleConfirmLogout = async () => {
     try {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     } catch {
       // Fallback
     }
     setShowLogoutModal(false);
+    await logout();
     onLogout?.();
   };
+
+  const username = user?.fullName || user?.email?.split('@')[0] || 'DreamPay User';
+  const accountId = user?._id ? user._id.slice(-6).toUpperCase() : 'USER';
+  const tierName = user?.plan?.name || 'Verified Member';
+  const balance = wallet?.balance ?? user?.wallet?.balance ?? 0;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -112,126 +241,121 @@ export const AssetsScreen: React.FC<AssetsScreenProps> = ({
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomNavPadding }]}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={Colors.primary}
+            colors={[Colors.primary]}
+          />
+        }
       >
         <View style={styles.contentContainer}>
           {/* User Identity Avatar Ring */}
-        <View style={styles.userHero}>
-          <View style={styles.avatarGlow}>
-            <View style={styles.avatarCircle}>
-              <User size={30} color={Colors.primary} />
+          <View style={styles.userHero}>
+            <View style={styles.avatarGlow}>
+              <View style={styles.avatarCircle}>
+                <User size={30} color={Colors.primary} />
+              </View>
             </View>
-          </View>
-          <Text style={[Typography.h3, styles.userTitle]}>
-            {mockUserProfile.username}
-          </Text>
-          <Text style={[Typography.captionSmall, styles.userSub]}>
-            Account ID: {mockUserProfile.userId} • Verified Tier 2
-          </Text>
-        </View>
-
-        {/* Commission Card matching reference */}
-        <View style={styles.commissionCard}>
-          <View style={styles.commissionLeft}>
-            <View style={styles.metricIconWrap}>
-              <Percent size={18} color={Colors.primary} />
-            </View>
-            <View>
-              <Text style={styles.metricLabel}>Commission</Text>
-              <Text style={[Typography.bodySemiBold, styles.metricValue]}>
-                ₹ 0.00
-              </Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            activeOpacity={0.7}
-            style={styles.commissionAction}
-            onPress={() => handleTilePress('Commission Rules')}
-          >
-            <Text style={styles.rulesText}>Rules</Text>
-            <ChevronRight size={14} color={Colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Deposit & Withdraw 2-column card matching reference */}
-        <View style={styles.twoColRow}>
-          <TouchableOpacity
-            activeOpacity={0.75}
-            onPress={() => handleTilePress('Deposit Ledger')}
-            style={styles.halfCard}
-          >
-            <View style={styles.metricIconWrap}>
-              <ArrowDownToLine size={16} color={Colors.success} />
-            </View>
-            <Text style={styles.metricLabel}>Deposit</Text>
-            <Text style={[Typography.bodySemiBold, styles.metricValue]}>
-              ₹ 0.00
+            <Text style={[Typography.h3, styles.userTitle]}>{username}</Text>
+            <Text style={[Typography.captionSmall, styles.userSub]}>
+              ID: {accountId} • {tierName}
             </Text>
-          </TouchableOpacity>
+          </View>
 
-          <TouchableOpacity
-            activeOpacity={0.75}
-            onPress={() => handleTilePress('Withdrawal Ledger')}
-            style={styles.halfCard}
-          >
-            <View style={styles.metricIconWrap}>
-              <ArrowUpFromLine size={16} color={Colors.danger} />
-            </View>
-            <Text style={styles.metricLabel}>Withdraw</Text>
-            <Text style={[Typography.bodySemiBold, styles.metricValue]}>
-              ₹ 0.00
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Service Action Grid (3x2 tiles) matching reference */}
-        <View style={styles.gridContainer}>
-          {mockAssetServiceGrid.map((item) => {
-            const IconComp = getServiceIcon(item.icon);
-            return (
-              <TouchableOpacity
-                key={item.id}
-                activeOpacity={0.75}
-                onPress={() => {
-                  if (item.id === 'service') {
-                    try {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    } catch {
-                      // Fallback
-                    }
-                    onNavigateToService?.();
-                  } else {
-                    handleTilePress(item.title);
-                  }
-                }}
-                style={styles.gridTile}
-              >
-                <View style={styles.tileIconContainer}>
-                  <IconComp size={22} color={Colors.primary} />
-                </View>
-                <Text style={[Typography.caption, styles.tileTitle]}>
-                  {item.title}
+          {/* Wallet Commission Card */}
+          <View style={styles.commissionCard}>
+            <View style={styles.commissionLeft}>
+              <View style={styles.metricIconWrap}>
+                <Wallet size={18} color={Colors.primary} />
+              </View>
+              <View>
+                <Text style={styles.metricLabel}>Available Balance</Text>
+                <Text style={[Typography.bodySemiBold, styles.metricValue]}>
+                  ₹ {balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </Text>
-                <Text style={styles.tileSubtitle}>{item.subtitle}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+              </View>
+            </View>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              style={styles.commissionAction}
+              onPress={() => onNavigateToDeposit?.()}
+            >
+              <Text style={styles.rulesText}>Add Funds</Text>
+              <ChevronRight size={14} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
 
-        {/* Prominent Logout Button matching reference */}
-        <View style={styles.logoutWrapper}>
-          <PrimaryButton
-            title="Logout"
-            variant="primary"
-            size="lg"
-            icon={<LogOut size={18} color="#FFFFFF" />}
-            onPress={handleLogoutPress}
-            fullWidth
-          />
-        </View>
+          {/* Deposit & Withdraw 2-column card */}
+          <View style={styles.twoColRow}>
+            <TouchableOpacity
+              activeOpacity={0.75}
+              onPress={() => onNavigateToHistory?.()}
+              style={styles.halfCard}
+            >
+              <View style={styles.metricIconWrap}>
+                <ArrowDownToLine size={16} color={Colors.success} />
+              </View>
+              <Text style={styles.metricLabel}>Total Deposited</Text>
+              <Text style={[Typography.bodySemiBold, styles.metricValue]}>
+                ₹ {depositSum.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.75}
+              onPress={() => onNavigateToHistory?.()}
+              style={styles.halfCard}
+            >
+              <View style={styles.metricIconWrap}>
+                <ArrowUpFromLine size={16} color={Colors.danger} />
+              </View>
+              <Text style={styles.metricLabel}>Total Withdrawn</Text>
+              <Text style={[Typography.bodySemiBold, styles.metricValue]}>
+                ₹ {withdrawalSum.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Service Action Grid */}
+          <View style={styles.gridContainer}>
+            {assetMenuGrid.map((item) => {
+              const IconComp = getServiceIcon(item.icon);
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  activeOpacity={0.75}
+                  onPress={() => handleTilePress(item)}
+                  style={styles.gridTile}
+                >
+                  <View style={styles.tileIconContainer}>
+                    <IconComp size={22} color={Colors.primary} />
+                  </View>
+                  <Text style={[Typography.caption, styles.tileTitle]}>
+                    {item.title}
+                  </Text>
+                  <Text style={styles.tileSubtitle}>{item.subtitle}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Logout Button */}
+          <View style={styles.logoutWrapper}>
+            <PrimaryButton
+              title="Logout"
+              variant="primary"
+              size="lg"
+              icon={<LogOut size={18} color="#FFFFFF" />}
+              onPress={handleLogoutPress}
+              fullWidth
+            />
+          </View>
         </View>
       </ScrollView>
 
-      {/* Logout Confirmation Pop-up Modal */}
+      {/* Logout Confirmation Modal */}
       <Modal
         visible={showLogoutModal}
         transparent={true}
@@ -247,10 +371,10 @@ export const AssetsScreen: React.FC<AssetsScreenProps> = ({
             </View>
 
             <Text style={[Typography.h2, styles.logoutModalTitle]}>
-              Log Out of PayApp?
+              Log Out of DreamPay?
             </Text>
             <Text style={styles.logoutModalDesc}>
-              Are you sure you want to end your session? You will need to verify your email via OTP to sign back in.
+              Are you sure you want to end your current session? You can sign back in anytime with your credentials.
             </Text>
 
             <View style={styles.logoutModalBtnRow}>
@@ -341,8 +465,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   rulesText: {
-    color: Colors.textSecondary,
+    color: Colors.primary,
     fontSize: 12,
+    fontWeight: '600',
     marginRight: 2,
   },
   twoColRow: {
@@ -430,11 +555,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 92, 112, 0.35)',
-    shadowColor: Colors.danger,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 8,
   },
   logoutIconOuter: {
     width: 68,

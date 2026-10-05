@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,10 +7,11 @@ import {
   TouchableOpacity,
   TextInput,
   Modal,
-  Linking,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import * as ImagePicker from 'expo-image-picker';
 import Svg, { Rect, Path, G } from 'react-native-svg';
 import {
   Copy,
@@ -18,8 +19,6 @@ import {
   Upload,
   CheckCircle2,
   FileCheck,
-  Smartphone,
-  ExternalLink,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -27,7 +26,10 @@ import { Header } from '../components/Header';
 import { Colors } from '../theme/colors';
 import { BorderRadius, Spacing } from '../theme/spacing';
 import { Typography } from '../theme/typography';
-import { OfferItem } from '../types';
+import { OfferItem, ApiPaymentMethods } from '../types';
+import { depositService } from '../services/depositService';
+import { useAuth } from '../context/AuthContext';
+import { getFullImageUrl } from '../utils/imageUrl';
 
 interface DepositScreenProps {
   onBack?: () => void;
@@ -37,7 +39,7 @@ interface DepositScreenProps {
 
 const OFFICIAL_UPI_ID = '894738783@okaxis';
 
-// Vector QR Code Component (UPI Intent for PayApp)
+// Vector QR Code Component (UPI Intent for DreamPay)
 const SvgQRCode = ({ size = 200 }: { size?: number }) => {
   return (
     <Svg width={size} height={size} viewBox="0 0 120 120">
@@ -123,6 +125,7 @@ export const DepositScreen: React.FC<DepositScreenProps> = ({
   offer,
   onSuccess,
 }) => {
+  const { refreshUser } = useAuth();
   const amount = offer ? String(offer.amount) : '1000';
   const [utrNumber, setUtrNumber] = useState('');
   const [copiedUpi, setCopiedUpi] = useState(false);
@@ -130,6 +133,17 @@ export const DepositScreen: React.FC<DepositScreenProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [paymentMethods, setPaymentMethods] = useState<ApiPaymentMethods | null>(null);
+
+  useEffect(() => {
+    depositService.getPaymentMethods().then((res) => {
+      if (res) {
+        setPaymentMethods(res);
+      }
+    });
+  }, []);
+
+  const activeUpiId = paymentMethods?.bankAccount?.upiId || OFFICIAL_UPI_ID;
 
   const handleCopyUPI = () => {
     try {
@@ -141,37 +155,42 @@ export const DepositScreen: React.FC<DepositScreenProps> = ({
     }
   };
 
-  const handleOpenUPI = async () => {
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const payAmount = amount || '500';
-      const upiUrl = `upi://pay?pa=${OFFICIAL_UPI_ID}&pn=PayApp&am=${payAmount}&cu=INR`;
-      const canOpen = await Linking.canOpenURL(upiUrl);
-      if (canOpen) {
-        await Linking.openURL(upiUrl);
-      } else {
-        handleCopyUPI();
-      }
-    } catch {
-      handleCopyUPI();
-    }
-  };
-
-  const handleUploadScreenshot = () => {
+  const handleUploadScreenshot = async () => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      // Simulate receipt attachment
-      setUploadedProof(`payment_receipt_${Date.now().toString().slice(-6)}.jpg`);
-      setValidationError(null);
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        setValidationError('Gallery permission is required to upload receipt.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setUploadedProof(result.assets[0].uri);
+        setValidationError(null);
+      }
     } catch {
-      // Fallback
+      setValidationError('Failed to pick screenshot image.');
     }
   };
 
-  const handleConfirmPayment = () => {
-    // Validation
-    if (!utrNumber.trim() || utrNumber.trim().length < 10) {
+  const handleConfirmPayment = async () => {
+    if (!utrNumber.trim() || utrNumber.trim().length < 8) {
       setValidationError('Please enter a valid 12-digit UTR number from your payment receipt.');
+      try {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      } catch {
+        // Fallback
+      }
+      return;
+    }
+
+    if (!uploadedProof) {
+      setValidationError('Please upload a screenshot proof of your payment.');
       try {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       } catch {
@@ -184,16 +203,33 @@ export const DepositScreen: React.FC<DepositScreenProps> = ({
     setIsSubmitting(true);
 
     try {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {
-      // Fallback
-    }
+      const res = await depositService.submitDeposit({
+        amount,
+        transactionRef: utrNumber.trim(),
+        imageUri: uploadedProof,
+        planId: offer?.id,
+      });
 
-    setTimeout(() => {
       setIsSubmitting(false);
-      setShowSuccessModal(true);
-      onSuccess?.();
-    }, 1200);
+
+      if (res.success) {
+        try {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } catch {
+          // Fallback
+        }
+        setShowSuccessModal(true);
+        refreshUser();
+        onSuccess?.();
+      } else {
+        setValidationError(res.message || 'Deposit submission failed.');
+      }
+    } catch (err: any) {
+      setIsSubmitting(false);
+      setValidationError(
+        err.response?.data?.message || 'Error submitting deposit request to DreamPay.'
+      );
+    }
   };
 
   return (
@@ -223,7 +259,7 @@ export const DepositScreen: React.FC<DepositScreenProps> = ({
               adjustsFontSizeToFit
               minimumFontScale={0.8}
             >
-              {OFFICIAL_UPI_ID}
+              {activeUpiId}
             </Text>
           </View>
 
@@ -244,7 +280,15 @@ export const DepositScreen: React.FC<DepositScreenProps> = ({
         {/* 2. QR Code Section matching reference */}
         <View style={styles.qrSectionWrapper}>
           <View style={styles.qrCodeCard}>
-            <SvgQRCode size={220} />
+            {paymentMethods?.qrCode?.imageUrl ? (
+              <Image
+                source={{ uri: getFullImageUrl(paymentMethods.qrCode.imageUrl) }}
+                style={{ width: 220, height: 220, borderRadius: 8 }}
+                resizeMode="contain"
+              />
+            ) : (
+              <SvgQRCode size={220} />
+            )}
           </View>
 
           <Text style={styles.scanInstructionsText}>
@@ -253,16 +297,6 @@ export const DepositScreen: React.FC<DepositScreenProps> = ({
             for verification purpose
           </Text>
 
-          {/* Quick Pay Action Button */}
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={handleOpenUPI}
-            style={styles.openUpiBtn}
-          >
-            <Smartphone size={16} color={Colors.primary} style={{ marginRight: 6 }} />
-            <Text style={styles.openUpiBtnText}>Pay with GPay / PhonePe / Paytm</Text>
-            <ExternalLink size={13} color={Colors.primary} style={{ marginLeft: 4 }} />
-          </TouchableOpacity>
         </View>
 
         {/* 3. Enter UTR Number Input matching reference */}
@@ -507,23 +541,6 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
     marginBottom: Spacing.xs,
     paddingHorizontal: Spacing.lg,
-  },
-  openUpiBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.primaryMuted,
-    borderWidth: 1,
-    borderColor: Colors.borderAccent,
-    marginTop: 6,
-  },
-  openUpiBtnText: {
-    color: Colors.primary,
-    fontSize: 12,
-    fontWeight: '700',
   },
 
   // Form Fields

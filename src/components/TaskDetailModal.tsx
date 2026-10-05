@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,16 +6,25 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Image,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  Easing,
-} from 'react-native-reanimated';
-import { X, Award, Clock, CheckCircle2, Circle } from 'lucide-react-native';
-import { TaskItem } from '../types';
+import * as ImagePicker from 'expo-image-picker';
+import * as Haptics from 'expo-haptics';
+import {
+  X,
+  Award,
+  Upload,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  FileCheck,
+} from 'lucide-react-native';
+import { ApiTask } from '../types';
+import { taskService } from '../services/taskService';
+import { useAuth } from '../context/AuthContext';
 import { Colors } from '../theme/colors';
 import { BorderRadius, Spacing } from '../theme/spacing';
 import { Typography } from '../theme/typography';
@@ -25,53 +34,92 @@ import { PrimaryButton } from './PrimaryButton';
 interface TaskDetailModalProps {
   visible: boolean;
   onClose: () => void;
-  task: TaskItem | null;
-  onUpdateTask?: (updated: TaskItem) => void;
+  task: ApiTask | null;
+  onTaskSubmitted?: () => void;
 }
 
 export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   visible,
   onClose,
   task,
-  onUpdateTask,
+  onTaskSubmitted,
 }) => {
   const insets = useSafeAreaInsets();
-  const progressVal = useSharedValue(0);
-
-  useEffect(() => {
-    if (visible && task) {
-      progressVal.value = 0;
-      progressVal.value = withTiming(task.progressPercent / 100, {
-        duration: 800,
-        easing: Easing.out(Easing.cubic),
-      });
-    }
-  }, [visible, task, progressVal]);
-
-  const animatedProgressStyle = useAnimatedStyle(() => ({
-    width: `${Math.min(100, Math.max(0, progressVal.value * 100))}%`,
-  }));
+  const { refreshUser } = useAuth();
+  const [selectedProofUri, setSelectedProofUri] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   if (!task) return null;
 
-  const handleToggleStep = (index: number) => {
-    if (!task.steps) return;
-    const updatedSteps = [...task.steps];
-    updatedSteps[index].done = !updatedSteps[index].done;
+  const submissionStatus = task.mySubmission?.status;
 
-    const completedCount = updatedSteps.filter((s) => s.done).length;
-    const newPercent = Math.round((completedCount / updatedSteps.length) * 100);
+  const handlePickImage = async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(
+          'Permission Needed',
+          'Please allow access to your photos to upload task proof screenshot.'
+        );
+        return;
+      }
 
-    const updatedTask: TaskItem = {
-      ...task,
-      steps: updatedSteps,
-      progressPercent: newPercent,
-      status: newPercent === 100 ? 'claimable' : 'in_progress',
-      ctaText: newPercent === 100 ? 'Claim Reward' : 'In Progress',
-    };
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.8,
+      });
 
-    progressVal.value = withTiming(newPercent / 100, { duration: 400 });
-    onUpdateTask?.(updatedTask);
+      if (!result.canceled && result.assets[0]?.uri) {
+        setSelectedProofUri(result.assets[0].uri);
+        setErrorMessage(null);
+      }
+    } catch (err: any) {
+      console.warn('Image picker error:', err);
+      Alert.alert('Error', 'Unable to pick screenshot. Please try again.');
+    }
+  };
+
+  const handleSubmitProof = async () => {
+    if (!selectedProofUri) {
+      setErrorMessage('Please select a completion screenshot before submitting.');
+      try {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      } catch {
+        // Fallback
+      }
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setErrorMessage(null);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      const res = await taskService.submitTaskProof(task._id, selectedProofUri);
+
+      if (res?.success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert(
+          'Proof Submitted!',
+          'Your task proof screenshot has been submitted for verification. Reward will be added to your wallet upon review.'
+        );
+        setSelectedProofUri(null);
+        await refreshUser();
+        onTaskSubmitted?.();
+        onClose();
+      } else {
+        setErrorMessage(res?.message || 'Failed to submit proof. Please try again.');
+      }
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.message || 'Error submitting task proof.';
+      setErrorMessage(msg);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -82,27 +130,36 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom + Spacing.md, Spacing.xxl) }]}>
+        <View
+          style={[
+            styles.sheet,
+            { paddingBottom: Math.max(insets.bottom + Spacing.md, Spacing.xl) },
+          ]}
+        >
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.tagRow}>
-              <Badge label={task.tag} variant="outline" size="sm" />
-              <Badge
-                label={
-                  task.status === 'claimable'
-                    ? 'Claim Ready'
-                    : task.status === 'in_progress'
-                    ? 'In Progress'
-                    : 'Active'
-                }
-                variant={task.status === 'claimable' ? 'success' : 'accent'}
-                size="sm"
-                style={styles.statusBadge}
-              />
+              <Badge label="Daily Reward Task" variant="outline" size="sm" />
+              {submissionStatus === 'approved' && (
+                <Badge label="Completed" variant="success" size="sm" />
+              )}
+              {submissionStatus === 'pending' && (
+                <Badge label="Under Review" variant="warning" size="sm" />
+              )}
+              {submissionStatus === 'rejected' && (
+                <Badge label="Rejected" variant="danger" size="sm" />
+              )}
+              {!submissionStatus && (
+                <Badge label="Ready to Start" variant="accent" size="sm" />
+              )}
             </View>
             <TouchableOpacity
               activeOpacity={0.7}
-              onPress={onClose}
+              onPress={() => {
+                setSelectedProofUri(null);
+                setErrorMessage(null);
+                onClose();
+              }}
               style={styles.closeBtn}
             >
               <X size={18} color={Colors.textSecondary} />
@@ -121,10 +178,8 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                 <View style={styles.metricIconWrap}>
                   <Award size={18} color={Colors.primary} />
                 </View>
-                <Text style={styles.metricSub}>Reward Payout</Text>
-                <Text style={styles.metricValue}>
-                  +{task.rewardPoints} Pts (₹{task.rewardInr || task.rewardPoints})
-                </Text>
+                <Text style={styles.metricSub}>Reward Earning</Text>
+                <Text style={styles.metricValue}>₹ {task.rewardAmount}.00</Text>
               </View>
 
               <View style={styles.metricDivider} />
@@ -133,84 +188,110 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                 <View style={styles.metricIconWrap}>
                   <Clock size={18} color={Colors.secondary} />
                 </View>
-                <Text style={styles.metricSub}>Valid Until</Text>
-                <Text style={styles.metricValue}>
-                  {task.deadline || task.validUntil || 'Active'}
-                </Text>
+                <Text style={styles.metricSub}>Verification</Text>
+                <Text style={styles.metricValue}>Fast 15-Min Audit</Text>
               </View>
             </View>
 
-            {/* Progress Section */}
-            <View style={styles.progressSection}>
-              <View style={styles.progressHeader}>
-                <Text style={styles.progressTitle}>Task Completion</Text>
-                <Text style={styles.progressPercentText}>
-                  {task.progressPercent}%
-                </Text>
-              </View>
-              <View style={styles.progressBarTrack}>
-                <Animated.View
-                  style={[styles.progressBarFill, animatedProgressStyle]}
-                />
-              </View>
-            </View>
-
-            {/* Steps Checklist */}
-            {task.steps && task.steps.length > 0 && (
-              <View style={styles.checklistSection}>
-                <Text style={[Typography.sectionTitle, styles.checklistTitle]}>
-                  Step by Step Criteria
-                </Text>
-                {task.steps.map((step, idx) => (
-                  <TouchableOpacity
-                    key={idx}
-                    activeOpacity={0.7}
-                    onPress={() => handleToggleStep(idx)}
-                    style={styles.stepItem}
-                  >
-                    {step.done ? (
-                      <CheckCircle2 size={20} color={Colors.success} />
-                    ) : (
-                      <Circle size={20} color={Colors.textMuted} />
-                    )}
-                    <Text
-                      style={[
-                        styles.stepText,
-                        step.done && styles.stepTextDone,
-                      ]}
-                    >
-                      {step.title}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+            {/* Status Feedback Banner */}
+            {submissionStatus === 'approved' && (
+              <View style={styles.statusSuccessBanner}>
+                <CheckCircle2 size={20} color={Colors.success} style={{ marginRight: 8 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.statusSuccessTitle}>Task Approved!</Text>
+                  <Text style={styles.statusSuccessText}>
+                    ₹ {task.rewardAmount}.00 has been credited to your DreamPay wallet.
+                  </Text>
+                </View>
               </View>
             )}
 
-            {/* CTA */}
-            <View style={styles.footerCTA}>
-              <PrimaryButton
-                title={
-                  task.status === 'claimable'
-                    ? 'Claim +100 Points Now'
-                    : 'Mark Next Step Complete'
-                }
-                variant="primary"
-                size="lg"
-                fullWidth
-                onPress={() => {
-                  if (task.steps) {
-                    const firstUndone = task.steps.findIndex((s) => !s.done);
-                    if (firstUndone !== -1) {
-                      handleToggleStep(firstUndone);
-                    } else {
-                      onClose();
+            {submissionStatus === 'pending' && (
+              <View style={styles.statusPendingBanner}>
+                <FileCheck size={20} color={Colors.warning} style={{ marginRight: 8 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.statusPendingTitle}>Submission Under Review</Text>
+                  <Text style={styles.statusPendingText}>
+                    Your proof screenshot has been submitted and is currently being audited by the DreamPay review team.
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Proof Upload Area (When not yet approved) */}
+            {submissionStatus !== 'approved' && submissionStatus !== 'pending' && (
+              <View style={styles.uploadSection}>
+                <Text style={[Typography.sectionTitle, styles.uploadSectionTitle]}>
+                  Upload Proof Screenshot
+                </Text>
+                <Text style={styles.uploadSectionDesc}>
+                  Perform the task described above and upload a screenshot showing proof of completion.
+                </Text>
+
+                {selectedProofUri ? (
+                  <View style={styles.proofPreviewContainer}>
+                    <Image source={{ uri: selectedProofUri }} style={styles.proofPreviewImage} />
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={handlePickImage}
+                      style={styles.changeProofBtn}
+                    >
+                      <Text style={styles.changeProofText}>Change Screenshot</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={handlePickImage}
+                    style={styles.pickBox}
+                  >
+                    <View style={styles.pickIconCircle}>
+                      <Upload size={22} color={Colors.primary} />
+                    </View>
+                    <Text style={styles.pickTitle}>Select Screenshot from Gallery</Text>
+                    <Text style={styles.pickHint}>JPG, PNG or WEBP format</Text>
+                  </TouchableOpacity>
+                )}
+
+                {errorMessage && (
+                  <View style={styles.errorBox}>
+                    <AlertCircle size={16} color={Colors.danger} style={{ marginRight: 6 }} />
+                    <Text style={styles.errorText}>{errorMessage}</Text>
+                  </View>
+                )}
+
+                <View style={styles.footerCTA}>
+                  <PrimaryButton
+                    title={isSubmitting ? 'Submitting Proof...' : 'Submit Proof Screenshot'}
+                    variant="primary"
+                    size="lg"
+                    fullWidth
+                    disabled={isSubmitting}
+                    icon={
+                      isSubmitting ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Upload size={18} color="#FFFFFF" />
+                      )
                     }
-                  } else {
-                    onClose();
-                  }
-                }}
-              />
-            </View>
+                    onPress={handleSubmitProof}
+                  />
+                </View>
+              </View>
+            )}
+
+            {/* When already submitted or approved */}
+            {(submissionStatus === 'approved' || submissionStatus === 'pending') && (
+              <View style={styles.footerCTA}>
+                <PrimaryButton
+                  title="Close"
+                  variant="secondary"
+                  size="lg"
+                  fullWidth
+                  onPress={onClose}
+                />
+              </View>
+            )}
           </ScrollView>
         </View>
       </View>
@@ -221,7 +302,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    backgroundColor: 'rgba(0, 0, 0, 0.78)',
     justifyContent: 'flex-end',
   },
   sheet: {
@@ -229,9 +310,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: BorderRadius.xl,
     borderTopRightRadius: BorderRadius.xl,
     paddingTop: Spacing.md,
-    paddingBottom: Spacing.xxl,
     paddingHorizontal: Spacing.lg,
-    maxHeight: '90%',
+    maxHeight: '92%',
     borderWidth: 1,
     borderColor: Colors.border,
   },
@@ -244,9 +324,7 @@ const styles = StyleSheet.create({
   tagRow: {
     flexDirection: 'row',
     gap: Spacing.xs,
-  },
-  statusBadge: {
-    marginLeft: 6,
+    alignItems: 'center',
   },
   closeBtn: {
     width: 32,
@@ -267,6 +345,7 @@ const styles = StyleSheet.create({
   description: {
     color: Colors.textSecondary,
     marginBottom: Spacing.md,
+    lineHeight: 20,
   },
   metricCard: {
     flexDirection: 'row',
@@ -282,9 +361,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   metricIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: Colors.surfaceElevated,
     alignItems: 'center',
     justifyContent: 'center',
@@ -298,71 +377,131 @@ const styles = StyleSheet.create({
   metricValue: {
     color: Colors.textPrimary,
     fontWeight: '700',
-    fontSize: 13,
+    fontSize: 14,
   },
   metricDivider: {
     width: 1,
     backgroundColor: Colors.borderSubtle,
     marginVertical: 4,
   },
-  progressSection: {
+  statusSuccessBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(46, 204, 113, 0.12)',
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(46, 204, 113, 0.3)',
     marginBottom: Spacing.lg,
   },
-  progressHeader: {
+  statusSuccessTitle: {
+    color: Colors.success,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  statusSuccessText: {
+    color: Colors.textSecondary,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  statusPendingBanner: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    backgroundColor: 'rgba(255, 176, 32, 0.12)',
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 176, 32, 0.3)',
+    marginBottom: Spacing.lg,
+  },
+  statusPendingTitle: {
+    color: Colors.warning,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  statusPendingText: {
+    color: Colors.textSecondary,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  uploadSection: {
+    marginBottom: Spacing.md,
+  },
+  uploadSectionTitle: {
+    color: Colors.textPrimary,
+    marginBottom: 4,
+  },
+  uploadSectionDesc: {
+    color: Colors.textMuted,
+    fontSize: 12,
+    marginBottom: Spacing.md,
+  },
+  pickBox: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1.5,
+    borderColor: Colors.borderAccent,
+    borderStyle: 'dashed',
+    paddingVertical: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.md,
+  },
+  pickIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.primaryMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: Spacing.xs,
   },
-  progressTitle: {
-    color: Colors.textSecondary,
+  pickTitle: {
+    color: Colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  pickHint: {
+    color: Colors.textMuted,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  proofPreviewContainer: {
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  proofPreviewImage: {
+    width: '100%',
+    height: 180,
+    borderRadius: BorderRadius.md,
+    resizeMode: 'cover',
+    marginBottom: Spacing.xs,
+  },
+  changeProofBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  changeProofText: {
+    color: Colors.primary,
     fontSize: 13,
     fontWeight: '600',
   },
-  progressPercentText: {
-    color: Colors.primary,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  progressBarTrack: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: Colors.primary,
-    borderRadius: 4,
-  },
-  checklistSection: {
-    marginBottom: Spacing.lg,
-  },
-  checklistTitle: {
-    color: Colors.textPrimary,
-    marginBottom: Spacing.sm,
-  },
-  stepItem: {
+  errorBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
+    backgroundColor: 'rgba(255, 92, 112, 0.12)',
     padding: Spacing.sm,
     borderRadius: BorderRadius.sm,
-    marginBottom: Spacing.xs,
+    marginBottom: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: 'rgba(255, 92, 112, 0.3)',
   },
-  stepText: {
-    color: Colors.textPrimary,
-    fontSize: 13,
-    marginLeft: Spacing.sm,
+  errorText: {
+    color: '#FF5C70',
+    fontSize: 12,
     flex: 1,
   },
-  stepTextDone: {
-    color: Colors.textMuted,
-    textDecorationLine: 'line-through',
-  },
   footerCTA: {
-    marginTop: Spacing.sm,
+    marginTop: Spacing.xs,
   },
 });

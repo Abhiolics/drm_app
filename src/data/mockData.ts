@@ -1,3 +1,8 @@
+/**
+ * @deprecated
+ * MOCK DATA DEPRECATED: Do not import or use mock data in the DreamPay app.
+ * All modules connect to live backend APIs at https://drmpbackend.vercel.app/api
+ */
 import {
   UserProfile,
   Transaction,
@@ -7,6 +12,8 @@ import {
   OfferItem,
   TeamStats,
   ServiceChannel,
+  UpiAccount,
+  GiftRewardItem,
 } from '../types';
 
 export const mockUserProfile: UserProfile = {
@@ -222,7 +229,7 @@ export const mockTasks: TaskItem[] = [
     ctaText: 'Go to Bind',
     deadline: 'Aug 11, 2026 23:59',
     steps: [
-      { title: 'Connect Telegram handle (@payapp_official)', done: false },
+      { title: 'Connect Telegram handle (@dreampay_official)', done: false },
       { title: 'Authorize bot verification token', done: false },
     ],
   },
@@ -424,7 +431,7 @@ export const mockAssetMetrics = [
 
 export const mockAssetServiceGrid = [
   { id: 'wallet', title: 'Wallet', icon: 'Wallet', subtitle: '₹25,669.51' },
-  { id: 'integral', title: 'Integral', icon: 'Sparkles', subtitle: '1,450 Pts' },
+  { id: 'giftcode', title: 'Giftcode', icon: 'Gift', subtitle: 'Claim Rewards' },
   { id: 'service', title: 'Service', icon: 'Headphones', subtitle: '24/7 Chat' },
   { id: 'messages', title: 'Messages', icon: 'Mail', subtitle: '3 Unread' },
   { id: 'pin', title: 'PIN', icon: 'ShieldCheck', subtitle: 'Secured' },
@@ -438,7 +445,7 @@ export const mockTeamStats: TeamStats = {
   commissionsToday: 168.0,
   totalTeamDeposit: 148990.0,
   invitationCode: '21833',
-  invitationLink: 'https://payapp.com/join?ref=21833',
+  invitationLink: 'https://dreampay.com/join?ref=21833',
   levels: {
     'Level A': {
       todayMembers: 1,
@@ -467,39 +474,60 @@ export const mockTeamStats: TeamStats = {
 export const mockServiceChannels: ServiceChannel[] = [
   {
     id: 'srv-1',
-    name: 'PayApp Telegram Official..',
+    name: 'DreamPay Official Channel',
     role: 'Telegram Official Channel',
-    handle: '@PayAppOfficial',
-    url: 'https://t.me/PayAppOfficial',
+    handle: '@DreamPayOfficial',
+    url: 'https://t.me/DreamPayOfficial',
     isOnline: true,
     type: 'channel',
   },
   {
     id: 'srv-2',
-    name: 'Uono Telegram Customer...',
+    name: 'DreamPay Customer Support 1',
     role: 'Telegram Customer Service',
-    handle: '@UonoSupport1',
-    url: 'https://t.me/UonoSupport1',
+    handle: '@DreamPaySupport1',
+    url: 'https://t.me/DreamPaySupport1',
     isOnline: true,
     type: 'support',
   },
   {
     id: 'srv-3',
-    name: 'Uono Telegram Customer...',
+    name: 'DreamPay Customer Support 2',
     role: 'Telegram Customer Service',
-    handle: '@UonoSupport2',
-    url: 'https://t.me/UonoSupport2',
+    handle: '@DreamPaySupport2',
+    url: 'https://t.me/DreamPaySupport2',
     isOnline: true,
     type: 'support',
   },
   {
     id: 'srv-4',
-    name: 'Uono Telegram Customer...',
+    name: 'DreamPay VIP Desk',
     role: 'Telegram Customer Service',
-    handle: '@UonoSupport3',
-    url: 'https://t.me/UonoSupport3',
+    handle: '@DreamPaySupport3',
+    url: 'https://t.me/DreamPaySupport3',
     isOnline: true,
     type: 'support',
+  },
+];
+
+export const mockAccounts: UpiAccount[] = [
+  {
+    id: 'acc-1',
+    holderName: 'Bahaj',
+    upiId: 'nsjwjwk@upi',
+    isPrimary: true,
+  },
+];
+
+export const mockGiftRewards: GiftRewardItem[] = [
+  {
+    id: 'gift-1',
+    code: 'DREAMPAY SIGNUP BONUS',
+    rewardAmount: 89,
+    usedCount: 809,
+    totalLimit: 20000,
+    expiryDate: '2027-05-31',
+    isClaimed: false,
   },
 ];
 

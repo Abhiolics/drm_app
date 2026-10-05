@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Linking,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -26,33 +27,87 @@ import { Header } from '../components/Header';
 import { Colors } from '../theme/colors';
 import { BorderRadius, Spacing } from '../theme/spacing';
 import { Typography } from '../theme/typography';
-import { mockServiceChannels } from '../data/mockData';
-import { ServiceChannel } from '../types';
+import { appService } from '../services/appService';
+import { ApiContact } from '../types';
 
 interface ServiceScreenProps {
   onBack?: () => void;
 }
 
 export const ServiceScreen: React.FC<ServiceScreenProps> = ({ onBack }) => {
-  const [selectedChannel, setSelectedChannel] = useState<ServiceChannel | null>(null);
+  const [contacts, setContacts] = useState<ApiContact[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedContact, setSelectedContact] = useState<ApiContact | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  const handleContactPress = async (channel: ServiceChannel) => {
+  useEffect(() => {
+    const loadContacts = async () => {
+      try {
+        const res = await appService.getContacts();
+        if (Array.isArray(res) && res.length > 0) {
+          setContacts(res.filter((c: ApiContact) => c.isActive !== false));
+        } else {
+          // Fallback official contacts if backend list empty
+          setContacts([
+            {
+              _id: 'c1',
+              type: 'telegram',
+              label: 'Official Telegram Channel',
+              value: 'https://t.me/dreampay_official',
+              isActive: true,
+            },
+            {
+              _id: 'c2',
+              type: 'whatsapp',
+              label: '24/7 WhatsApp Support',
+              value: '+919876543210',
+              isActive: true,
+            },
+          ]);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch support contacts:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadContacts();
+  }, []);
+
+  const getContactUrl = (contact: ApiContact): string => {
+    const val = contact.value;
+    if (contact.type === 'whatsapp') {
+      const cleanPhone = val.replace(/[^0-9]/g, '');
+      return `https://wa.me/${cleanPhone}`;
+    }
+    if (contact.type === 'telegram') {
+      return val.startsWith('http') ? val : `https://t.me/${val.replace('@', '')}`;
+    }
+    if (contact.type === 'email') {
+      return `mailto:${val}`;
+    }
+    if (contact.type === 'phone') {
+      return `tel:${val}`;
+    }
+    return val;
+  };
+
+  const handleContactPress = async (contact: ApiContact) => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const canOpen = await Linking.canOpenURL(channel.url);
+      const url = getContactUrl(contact);
+      const canOpen = await Linking.canOpenURL(url);
       if (canOpen) {
-        await Linking.openURL(channel.url);
+        await Linking.openURL(url);
       } else {
-        // Fallback to modal with copy option
-        setSelectedChannel(channel);
+        setSelectedContact(contact);
       }
     } catch {
-      setSelectedChannel(channel);
+      setSelectedContact(contact);
     }
   };
 
-  const handleCopyHandle = (channel: ServiceChannel) => {
+  const handleCopyHandle = (contact: ApiContact) => {
     try {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setCopiedLink(true);
@@ -66,9 +121,9 @@ export const ServiceScreen: React.FC<ServiceScreenProps> = ({ onBack }) => {
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
       <StatusBar style="light" />
 
-      {/* Screen Header matching reference */}
+      {/* Screen Header */}
       <Header
-        title="Service"
+        title="Support Service"
         showBack={true}
         onBack={onBack}
         centerTitle={true}
@@ -85,74 +140,76 @@ export const ServiceScreen: React.FC<ServiceScreenProps> = ({ onBack }) => {
           </View>
           <View style={styles.noticeTextWrap}>
             <Text style={[Typography.caption, styles.noticeTitle]}>
-              Official Support Protection
+              Official DreamPay Support Protection
             </Text>
             <Text style={styles.noticeSubtitle}>
-              PayApp representatives will never ask for your password, PIN, or withdrawal OTP.
+              DreamPay staff will never ask for your password, withdrawal OTP, or secret credentials.
             </Text>
           </View>
         </View>
 
-        {/* List of Service Channels matching reference */}
-        <View style={styles.channelList}>
-          {mockServiceChannels.map((channel) => (
-            <View key={channel.id} style={styles.channelCard}>
-              {/* Badge Icon matching the blue star medallion in screenshot */}
-              <View style={styles.avatarContainer}>
-                <LinearGradient
-                  colors={['#1E5BF8', '#0F399E']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.avatarGradient}
-                >
-                  {/* Subtle sparkle decoration */}
-                  <View style={styles.sparkleDotTop} />
-                  <View style={styles.sparkleDotBottom} />
-                  <Star size={16} color="#FFD700" fill="#FFD700" />
-                </LinearGradient>
-              </View>
-
-              {/* Title & Subtitle */}
-              <View style={styles.channelInfo}>
-                <View style={styles.nameRow}>
-                  <Text
-                    style={[Typography.bodySemiBold, styles.channelName]}
-                    numberOfLines={1}
+        {/* List of Live Support Channels */}
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+            <Text style={styles.loadingText}>Loading support desks...</Text>
+          </View>
+        ) : (
+          <View style={styles.channelList}>
+            {contacts.map((contact) => (
+              <View key={contact._id} style={styles.channelCard}>
+                {/* Badge Icon with Medallion */}
+                <View style={styles.avatarContainer}>
+                  <LinearGradient
+                    colors={['#1E5BF8', '#0F399E']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.avatarGradient}
                   >
-                    {channel.name}
-                  </Text>
+                    <Star size={16} color="#FFD700" fill="#FFD700" />
+                  </LinearGradient>
                 </View>
-                <View style={styles.roleRow}>
-                  <Text style={[Typography.caption, styles.channelRole]} numberOfLines={1}>
-                    {channel.role}
-                  </Text>
-                  {channel.isOnline && (
+
+                {/* Title & Subtitle */}
+                <View style={styles.channelInfo}>
+                  <View style={styles.nameRow}>
+                    <Text
+                      style={[Typography.bodySemiBold, styles.channelName]}
+                      numberOfLines={1}
+                    >
+                      {contact.label}
+                    </Text>
+                  </View>
+                  <View style={styles.roleRow}>
+                    <Text style={[Typography.caption, styles.channelRole]} numberOfLines={1}>
+                      {contact.value}
+                    </Text>
                     <View style={styles.onlineBadge}>
                       <View style={styles.onlineDot} />
-                      <Text style={styles.onlineText}>24/7</Text>
+                      <Text style={styles.onlineText}>Active</Text>
                     </View>
-                  )}
+                  </View>
                 </View>
-              </View>
 
-              {/* Contact Pill Button */}
-              <TouchableOpacity
-                activeOpacity={0.85}
-                onPress={() => handleContactPress(channel)}
-                style={styles.contactBtn}
-              >
-                <LinearGradient
-                  colors={['#5B8CFF', '#7C5CFC']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0.8 }}
-                  style={styles.contactBtnGradient}
+                {/* Contact Pill Button */}
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => handleContactPress(contact)}
+                  style={styles.contactBtn}
                 >
-                  <Text style={styles.contactBtnText}>Contact</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          ))}
-        </View>
+                  <LinearGradient
+                    colors={['#5B8CFF', '#7C5CFC']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0.8 }}
+                    style={styles.contactBtnGradient}
+                  >
+                    <Text style={styles.contactBtnText}>Connect</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* Bottom Help Tip */}
         <View style={styles.helpFooter}>
@@ -165,10 +222,10 @@ export const ServiceScreen: React.FC<ServiceScreenProps> = ({ onBack }) => {
 
       {/* Fallback Contact Sheet Modal */}
       <Modal
-        visible={!!selectedChannel}
+        visible={!!selectedContact}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setSelectedChannel(null)}
+        onRequestClose={() => setSelectedContact(null)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
@@ -176,33 +233,34 @@ export const ServiceScreen: React.FC<ServiceScreenProps> = ({ onBack }) => {
               <View style={styles.modalHeaderLeft}>
                 <MessageCircle size={18} color={Colors.primary} style={{ marginRight: 8 }} />
                 <Text style={[Typography.h3, { color: Colors.textPrimary }]}>
-                  Connect with Support
+                  Support Channel
                 </Text>
               </View>
               <TouchableOpacity
-                onPress={() => setSelectedChannel(null)}
+                onPress={() => setSelectedContact(null)}
                 style={styles.modalCloseBtn}
               >
                 <X size={18} color={Colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
-            {selectedChannel && (
+            {selectedContact && (
               <View style={styles.modalContent}>
                 <View style={styles.modalChannelInfo}>
                   <Text style={[Typography.bodySemiBold, { color: Colors.textPrimary }]}>
-                    {selectedChannel.name}
+                    {selectedContact.label}
                   </Text>
-                  <Text style={[Typography.caption, { color: Colors.textSecondary, marginTop: 2 }]}>
-                    {selectedChannel.role} • {selectedChannel.handle}
+                  <Text style={[Typography.caption, { color: Colors.textSecondary, marginTop: 4 }]}>
+                    {selectedContact.value}
                   </Text>
                 </View>
 
                 <TouchableOpacity
                   activeOpacity={0.85}
                   onPress={() => {
-                    Linking.openURL(selectedChannel.url);
-                    setSelectedChannel(null);
+                    const url = getContactUrl(selectedContact);
+                    Linking.openURL(url);
+                    setSelectedContact(null);
                   }}
                   style={styles.primaryModalBtn}
                 >
@@ -213,13 +271,13 @@ export const ServiceScreen: React.FC<ServiceScreenProps> = ({ onBack }) => {
                     style={styles.primaryModalGradient}
                   >
                     <Send size={16} color="#FFFFFF" style={{ marginRight: 8 }} />
-                    <Text style={styles.primaryModalBtnText}>Open in Telegram</Text>
+                    <Text style={styles.primaryModalBtnText}>Open Channel Link</Text>
                   </LinearGradient>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   activeOpacity={0.8}
-                  onPress={() => handleCopyHandle(selectedChannel)}
+                  onPress={() => handleCopyHandle(selectedContact)}
                   style={styles.secondaryModalBtn}
                 >
                   {copiedLink ? (
@@ -233,7 +291,7 @@ export const ServiceScreen: React.FC<ServiceScreenProps> = ({ onBack }) => {
                     <>
                       <Copy size={16} color={Colors.textPrimary} style={{ marginRight: 8 }} />
                       <Text style={[Typography.button, { color: Colors.textPrimary }]}>
-                        Copy Telegram Handle ({selectedChannel.handle})
+                        Copy ({selectedContact.value})
                       </Text>
                     </>
                   )}
@@ -260,8 +318,6 @@ const styles = StyleSheet.create({
     maxWidth: 600,
     alignSelf: 'center',
   },
-
-  // Security Notice
   noticeCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -295,8 +351,16 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     marginTop: 2,
   },
-
-  // Channel List
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.xxl,
+  },
+  loadingText: {
+    color: Colors.textSecondary,
+    fontSize: 13,
+    marginTop: Spacing.sm,
+  },
   channelList: {
     gap: 12,
   },
@@ -309,14 +373,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     borderWidth: 1,
     borderColor: Colors.borderSubtle,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
   },
-
-  // Blue Medallion with Gold Star
   avatarContainer: {
     width: 48,
     height: 48,
@@ -334,34 +391,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
-    shadowColor: '#1E5BF8',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.5,
-    shadowRadius: 6,
   },
-  sparkleDotTop: {
-    position: 'absolute',
-    top: 6,
-    right: 8,
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: '#FFFFFF',
-    opacity: 0.8,
-  },
-  sparkleDotBottom: {
-    position: 'absolute',
-    bottom: 8,
-    left: 7,
-    width: 2.5,
-    height: 2.5,
-    borderRadius: 1.5,
-    backgroundColor: '#FFFFFF',
-    opacity: 0.7,
-  },
-
-  // Info
   channelInfo: {
     flex: 1,
     marginRight: Spacing.sm,
@@ -383,6 +413,7 @@ const styles = StyleSheet.create({
   channelRole: {
     color: Colors.textSecondary,
     fontSize: 11,
+    flexShrink: 1,
   },
   onlineBadge: {
     flexDirection: 'row',
@@ -405,19 +436,12 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '700',
   },
-
-  // Contact Button
   contactBtn: {
     borderRadius: BorderRadius.full,
     overflow: 'hidden',
-    shadowColor: Colors.secondary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
-    elevation: 4,
   },
   contactBtnGradient: {
-    paddingHorizontal: 22,
+    paddingHorizontal: 20,
     paddingVertical: 9,
     alignItems: 'center',
     justifyContent: 'center',
@@ -427,8 +451,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-
-  // Help Footer
   helpFooter: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -440,8 +462,6 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontSize: 12,
   },
-
-  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.75)',
@@ -476,8 +496,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
   },
   modalContent: {
     gap: Spacing.md,

@@ -167,7 +167,7 @@ export const PaymentDetailScreen: React.FC<PaymentDetailScreenProps> = ({
         <View style={styles.securityBox}>
           <ShieldCheck size={18} color={Colors.primary} />
           <Text style={styles.securityText}>
-            Secured by 256-bit DRM Multi-Sig Ledger Protocol
+            Secured by 256-bit DreamPay Multi-Sig Ledger Protocol
           </Text>
         </View>
 

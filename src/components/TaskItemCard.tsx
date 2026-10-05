@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Award } from 'lucide-react-native';
-import { TaskItem } from '../types';
+import { Award, Clock } from 'lucide-react-native';
+import { ApiTask } from '../types';
 import { Colors } from '../theme/colors';
 import { BorderRadius, Spacing } from '../theme/spacing';
 import { Typography } from '../theme/typography';
@@ -9,9 +9,9 @@ import { Badge } from './Badge';
 import { PrimaryButton } from './PrimaryButton';
 
 interface TaskItemCardProps {
-  task: TaskItem;
-  onPressCTA?: (task: TaskItem) => void;
-  onPressCard?: (task: TaskItem) => void;
+  task: ApiTask;
+  onPressCTA?: (task: ApiTask) => void;
+  onPressCard?: (task: ApiTask) => void;
 }
 
 export const TaskItemCard: React.FC<TaskItemCardProps> = ({
@@ -19,6 +19,35 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
   onPressCTA,
   onPressCard,
 }) => {
+  const submission = task.mySubmission;
+  const isApproved = submission?.status === 'approved';
+  const isPending = submission?.status === 'pending';
+  const isRejected = submission?.status === 'rejected';
+
+  const badgeLabel = isApproved
+    ? 'Completed'
+    : isPending
+    ? 'Under Review'
+    : isRejected
+    ? 'Rejected'
+    : 'Active';
+
+  const badgeVariant = isApproved
+    ? 'success'
+    : isPending
+    ? 'warning'
+    : isRejected
+    ? 'danger'
+    : 'outline';
+
+  const ctaText = isApproved
+    ? 'Claimed ✓'
+    : isPending
+    ? 'Under Review'
+    : isRejected
+    ? 'Resubmit'
+    : 'Submit Proof';
+
   return (
     <TouchableOpacity
       activeOpacity={0.8}
@@ -27,16 +56,17 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
     >
       <View style={styles.headerRow}>
         <Badge
-          label={task.tag}
-          variant="outline"
+          label={badgeLabel}
+          variant={badgeVariant}
           size="sm"
           style={styles.tagBadge}
         />
-        {task.validUntil && (
+        <View style={styles.tagRight}>
+          <Clock size={12} color={Colors.textMuted} style={{ marginRight: 4 }} />
           <Text style={[Typography.captionSmall, styles.validDate]}>
-            {task.validUntil}
+            Daily Reward
           </Text>
-        )}
+        </View>
       </View>
 
       <Text style={[Typography.sectionTitle, styles.title]} numberOfLines={2}>
@@ -53,22 +83,23 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
             <Award size={14} color={Colors.primary} />
           </View>
           <Text style={[Typography.bodySemiBold, styles.rewardText]}>
-            {task.rewardPoints}
+            ₹ {task.rewardAmount}.00
           </Text>
         </View>
 
         <View style={styles.ctaWrapper}>
           <PrimaryButton
-            title={task.ctaText}
+            title={ctaText}
             onPress={() => (onPressCTA ? onPressCTA(task) : onPressCard?.(task))}
             size="sm"
             variant={
-              task.status === 'in_progress'
-                ? 'outline'
-                : task.ctaText === 'Not Started'
+              isApproved
                 ? 'secondary'
+                : isPending
+                ? 'outline'
                 : 'primary'
             }
+            disabled={isApproved || isPending}
           />
         </View>
       </View>
@@ -95,8 +126,11 @@ const styles = StyleSheet.create({
   tagBadge: {
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderColor: Colors.primaryLight,
     flexShrink: 0,
+  },
+  tagRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   validDate: {
     color: Colors.textMuted,

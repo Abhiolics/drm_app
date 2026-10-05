@@ -28,6 +28,7 @@ export interface PaymentItem {
   method: string;
   fee: number;
   terminalId: string;
+  description?: string;
 }
 
 export type TaskCategory = 'newbie' | 'growth' | 'daily';
@@ -76,6 +77,9 @@ export interface UserProfile {
   depositSum: number;
   withdrawalSum: number;
   unreadNotifications: number;
+  email?: string;
+  phoneNumber?: string;
+  planName?: string;
 }
 
 export interface TeamLevelData {
@@ -109,4 +113,108 @@ export interface ServiceChannel {
   url: string;
   isOnline: boolean;
   type: 'channel' | 'support';
+}
+
+export interface UpiAccount {
+  id: string;
+  holderName: string;
+  upiId: string;
+  isPrimary?: boolean;
+}
+
+export interface GiftRewardItem {
+  id: string;
+  code: string;
+  rewardAmount: number;
+  usedCount: number;
+  totalLimit: number;
+  expiryDate: string;
+  isClaimed: boolean;
+}
+
+// Backend API Types
+export interface ApiPlan {
+  _id: string;
+  name: string;
+  amount: number;
+  description: string;
+  isActive: boolean;
+  createdAt?: string;
+}
+
+export interface ApiPaymentMethods {
+  qrCode: {
+    enabled: boolean;
+    imageUrl: string;
+  };
+  bankAccount: {
+    enabled: boolean;
+    accountHolder: string;
+    bankName: string;
+    accountNumber: string;
+    ifscCode: string;
+    upiId: string;
+  };
+}
+
+export interface ApiTask {
+  _id: string;
+  title: string;
+  description: string;
+  rewardAmount: number;
+  isActive: boolean;
+  mySubmission?: {
+    status: 'pending' | 'approved' | 'rejected';
+    submittedAt?: string;
+    proof?: string;
+  } | null;
+}
+
+export interface ApiTransaction {
+  _id: string;
+  amount: number;
+  type: 'credit' | 'debit';
+  category: 'deposit' | 'withdrawal' | 'task_reward' | 'gift_code' | 'admin_adjustment' | string;
+  status: 'completed' | 'pending' | 'failed' | string;
+  description: string;
+  createdAt: string;
+}
+
+export interface ApiNotification {
+  _id: string;
+  title: string;
+  message: string;
+  type: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface ApiUser {
+  _id: string;
+  id?: string;
+  fullName: string;
+  email: string;
+  phoneNumber?: string;
+  role: string;
+  isBlocked?: boolean;
+  isActive?: boolean;
+  isEmailVerified?: boolean;
+  plan?: {
+    _id: string;
+    name: string;
+    amount: number;
+  } | null;
+  wallet?: {
+    balance: number;
+    pendingBalance: number;
+  };
+  createdAt?: string;
+}
+
+export interface ApiContact {
+  _id: string;
+  type: string;
+  label: string;
+  value: string;
+  isActive: boolean;
 }

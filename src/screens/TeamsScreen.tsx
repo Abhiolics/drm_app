@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Share,
   Modal,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -27,7 +28,8 @@ import { Header } from '../components/Header';
 import { Colors } from '../theme/colors';
 import { BorderRadius, Spacing } from '../theme/spacing';
 import { Typography } from '../theme/typography';
-import { mockTeamStats } from '../data/mockData';
+import { useAuth } from '../context/AuthContext';
+import { walletService } from '../services/walletService';
 
 type LevelTier = 'Level A' | 'Level B' | 'Level C';
 
@@ -36,23 +38,62 @@ interface TeamsScreenProps {
 }
 
 export const TeamsScreen: React.FC<TeamsScreenProps> = ({ onBack }) => {
-  const [selectedLevel, setSelectedLevel] = useState<LevelTier>('Level B');
+  const { user, wallet, refreshUser } = useAuth();
+  const [selectedLevel, setSelectedLevel] = useState<LevelTier>('Level A');
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [taskRewardsTotal, setTaskRewardsTotal] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const teamData = mockTeamStats;
-  const currentLevelData = teamData.levels[selectedLevel];
-  const progressPercent = Math.min(
-    100,
-    Math.round((currentLevelData.currentDeposit / currentLevelData.targetDeposit) * 100)
-  );
+  const inviteCode = user?._id ? user._id.slice(-6).toUpperCase() : 'DRMPAY';
+  const inviteLink = `https://drmpbackend.vercel.app/register?ref=${inviteCode}`;
+
+  useEffect(() => {
+    let isCancelled = false;
+    walletService.getTransactions({ category: 'task_reward' }).then((res) => {
+      if (isCancelled) return;
+      if (res?.transactions) {
+        const total = res.transactions.reduce((sum: number, tx: any) => sum + (Number(tx.amount) || 0), 0);
+        setTaskRewardsTotal(total);
+      }
+    }).catch((e) => {
+      console.warn('Failed to load team rewards:', e);
+    });
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      const res = await walletService.getTransactions({ category: 'task_reward' });
+      if (res?.transactions) {
+        const total = res.transactions.reduce((sum: number, tx: any) => sum + (Number(tx.amount) || 0), 0);
+        setTaskRewardsTotal(total);
+      }
+      await refreshUser();
+    } catch (e) {
+      console.warn('Failed to load team rewards:', e);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const levelRates = {
+    'Level A': { rate: '10%', desc: 'Direct invitees commission' },
+    'Level B': { rate: '5%', desc: 'Secondary network referrals' },
+    'Level C': { rate: '2%', desc: 'Extended tier community' },
+  };
+
+  const currentLevelConfig = levelRates[selectedLevel];
 
   const handleShare = async () => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await Share.share({
-        message: `Join my team on PayApp and start earning commissions! Use my invite link: ${teamData.invitationLink} (Code: ${teamData.invitationCode})`,
-        title: 'PayApp Team Invitation',
+        message: `Join my team on DreamPay and start earning daily tasks and referral rewards! Use my invite code: ${inviteCode}\nSign up link: ${inviteLink}`,
+        title: 'DreamPay Team Invitation',
       });
     } catch {
       // Fallback
@@ -73,9 +114,9 @@ export const TeamsScreen: React.FC<TeamsScreenProps> = ({ onBack }) => {
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
       <StatusBar style="light" />
 
-      {/* Screen Header matching reference */}
+      {/* Screen Header */}
       <Header
-        title="Teams"
+        title="Team Network"
         showBack={true}
         onBack={onBack}
         centerTitle={true}
@@ -84,8 +125,16 @@ export const TeamsScreen: React.FC<TeamsScreenProps> = ({ onBack }) => {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={Colors.primary}
+            colors={[Colors.primary]}
+          />
+        }
       >
-        {/* 1. Hero Commission Card matching reference with existing theme */}
+        {/* 1. Hero Commission Card */}
         <View style={styles.heroCardContainer}>
           <LinearGradient
             colors={['#2D1B68', '#1E1446', '#120F26']}
@@ -93,11 +142,10 @@ export const TeamsScreen: React.FC<TeamsScreenProps> = ({ onBack }) => {
             end={{ x: 0.8, y: 1 }}
             style={styles.heroCardGradient}
           >
-            {/* Ambient decorative glow elements */}
             <View style={styles.heroGlowCircle} />
 
             <Text style={[Typography.bodyMedium, styles.heroCommissionLabel]}>
-              My Total Commissions
+              My Total Team Earnings
             </Text>
 
             <Text
@@ -106,48 +154,38 @@ export const TeamsScreen: React.FC<TeamsScreenProps> = ({ onBack }) => {
               adjustsFontSizeToFit
               minimumFontScale={0.75}
             >
-              +₹{teamData.totalCommissions.toFixed(2)}/-
+              +₹{taskRewardsTotal.toFixed(2)}/-
             </Text>
 
             {/* 2x2 Metric Cards Grid */}
             <View style={styles.metricGrid}>
-              {/* Box 1: Commissions Yesterday */}
               <View style={styles.metricCard}>
                 <Text style={styles.metricCardLabel} numberOfLines={1}>
-                  Commissions Yesterday
+                  Referral Tier
                 </Text>
-                <Text style={styles.metricCardValue}>
-                  +{teamData.commissionsYesterday.toFixed(2)}
-                </Text>
+                <Text style={styles.metricCardValue}>Level 1 VIP</Text>
               </View>
 
-              {/* Box 2: Total Team Members */}
               <View style={styles.metricCard}>
                 <Text style={styles.metricCardLabel} numberOfLines={1}>
-                  Total Team Members
+                  Direct Rate
                 </Text>
-                <Text style={styles.metricCardValue}>
-                  +{teamData.totalTeamMembers}
-                </Text>
+                <Text style={styles.metricCardValue}>10% Rebate</Text>
               </View>
 
-              {/* Box 3: Commissions Today */}
               <View style={styles.metricCard}>
                 <Text style={styles.metricCardLabel} numberOfLines={1}>
-                  Commissions Today
+                  Invite Code
                 </Text>
-                <Text style={styles.metricCardValue}>
-                  +{teamData.commissionsToday.toFixed(2)}
-                </Text>
+                <Text style={styles.metricCardValue}>{inviteCode}</Text>
               </View>
 
-              {/* Box 4: Total Team Deposit */}
               <View style={styles.metricCard}>
                 <Text style={styles.metricCardLabel} numberOfLines={1}>
-                  Total Team Deposit
+                  Wallet Balance
                 </Text>
                 <Text style={styles.metricCardValue}>
-                  +{teamData.totalTeamDeposit.toFixed(2)}
+                  ₹{(wallet?.balance ?? user?.wallet?.balance ?? 0).toFixed(2)}
                 </Text>
               </View>
             </View>
@@ -162,10 +200,10 @@ export const TeamsScreen: React.FC<TeamsScreenProps> = ({ onBack }) => {
             </View>
             <View style={styles.invitationTextContainer}>
               <Text style={[Typography.bodySemiBold, styles.invitationTitle]}>
-                Invitation
+                Refer Friends
               </Text>
               <Text style={[Typography.caption, styles.invitationSubtitle]}>
-                Share the Link to Invite
+                Code: {inviteCode} • Share link to earn
               </Text>
             </View>
           </View>
@@ -187,7 +225,7 @@ export const TeamsScreen: React.FC<TeamsScreenProps> = ({ onBack }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Level Switcher Chips (Level A, Level B, Level C) */}
+        {/* Level Switcher Chips */}
         <View style={styles.levelSelectorContainer}>
           {(['Level A', 'Level B', 'Level C'] as LevelTier[]).map((lvl) => {
             const isSelected = selectedLevel === lvl;
@@ -203,10 +241,7 @@ export const TeamsScreen: React.FC<TeamsScreenProps> = ({ onBack }) => {
                   }
                   setSelectedLevel(lvl);
                 }}
-                style={[
-                  styles.levelChip,
-                  isSelected && styles.levelChipActive,
-                ]}
+                style={[styles.levelChip, isSelected && styles.levelChipActive]}
               >
                 <Text
                   style={[
@@ -221,74 +256,39 @@ export const TeamsScreen: React.FC<TeamsScreenProps> = ({ onBack }) => {
           })}
         </View>
 
-        {/* 3. New Team Members Card */}
+        {/* 3. Level Details Card */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionCardHeader}>
             <Text style={[Typography.bodySemiBold, styles.sectionCardTitle]}>
-              New Team Members
+              {selectedLevel} Commission Structure
             </Text>
           </View>
           <View style={styles.sectionCardDivider} />
           <View style={styles.sectionCardBody}>
             <Text style={[Typography.h3, styles.levelSubheading]}>
-              {selectedLevel}
+              {currentLevelConfig.rate} Commission
             </Text>
 
             <View style={styles.dataRow}>
-              <Text style={styles.dataRowLabel}>Today:</Text>
-              <Text style={styles.dataRowValue}>
-                {currentLevelData.todayMembers}
+              <Text style={styles.dataRowLabel}>Rebate Policy:</Text>
+              <Text style={styles.dataRowValue}>{currentLevelConfig.desc}</Text>
+            </View>
+
+            <View style={[styles.dataRow, { marginTop: 12 }]}>
+              <Text style={styles.dataRowLabel}>Status:</Text>
+              <Text style={[styles.dataRowValue, { color: Colors.success }]}>
+                Active & Earning
               </Text>
             </View>
 
-            <View style={[styles.dataRow, { marginTop: 10 }]}>
-              <Text style={styles.dataRowLabel}>Yesterday:</Text>
-              <Text style={styles.dataRowValue}>
-                {currentLevelData.yesterdayMembers}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* 4. Commissions/Deposit Card */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionCardHeader}>
-            <Text style={[Typography.bodySemiBold, styles.sectionCardTitle]}>
-              Commissions/Deposit
-            </Text>
-          </View>
-          <View style={styles.sectionCardDivider} />
-          <View style={styles.sectionCardBody}>
-            <Text style={[Typography.h3, styles.levelSubheading]}>
-              {selectedLevel}
-            </Text>
-
-            <View style={styles.depositRow}>
-              <Text style={styles.depositAmountText}>
-                {currentLevelData.currentDeposit.toFixed(2)}/
-                {currentLevelData.targetDeposit.toFixed(2)}
-              </Text>
-
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => setShowDetailsModal(true)}
-                style={styles.viewDetailsLink}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Text style={styles.viewDetailsText}>View Details</Text>
-                <ArrowRight size={14} color={Colors.primary} style={{ marginLeft: 4 }} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Subtle Progress Bar */}
-            <View style={styles.progressBarTrack}>
-              <View
-                style={[
-                  styles.progressBarFill,
-                  { width: `${Math.max(5, progressPercent)}%` },
-                ]}
-              />
-            </View>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setShowDetailsModal(true)}
+              style={styles.viewDetailsLink}
+            >
+              <Text style={styles.viewDetailsText}>View Referral Link & Terms</Text>
+              <ArrowRight size={14} color={Colors.primary} style={{ marginLeft: 4 }} />
+            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
@@ -319,32 +319,23 @@ export const TeamsScreen: React.FC<TeamsScreenProps> = ({ onBack }) => {
 
             <View style={styles.modalContent}>
               <View style={styles.modalStatBox}>
-                <Text style={styles.modalStatLabel}>Deposit Progress</Text>
+                <Text style={styles.modalStatLabel}>Referral Code</Text>
                 <Text style={[Typography.h2, { color: Colors.textPrimary, marginVertical: 4 }]}>
-                  ₹{currentLevelData.currentDeposit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  {inviteCode}
                 </Text>
                 <Text style={[Typography.caption, { color: Colors.textSecondary }]}>
-                  Target: ₹{currentLevelData.targetDeposit.toLocaleString('en-IN', { minimumFractionDigits: 2 })} ({progressPercent}%)
+                  Commission rate: {currentLevelConfig.rate} credited immediately to your DreamPay wallet.
                 </Text>
-
-                <View style={[styles.progressBarTrack, { marginTop: 12 }]}>
-                  <View
-                    style={[
-                      styles.progressBarFill,
-                      { width: `${Math.max(5, progressPercent)}%` },
-                    ]}
-                  />
-                </View>
               </View>
 
               <View style={styles.modalInfoRow}>
                 <TrendingUp size={16} color={Colors.success} style={{ marginRight: 10 }} />
                 <View style={{ flex: 1 }}>
                   <Text style={[Typography.bodySemiBold, { color: Colors.textPrimary }]}>
-                    Commission Rate: {currentLevelData.commissionRate}
+                    Automatic Settlement
                   </Text>
                   <Text style={[Typography.caption, { color: Colors.textSecondary, marginTop: 2 }]}>
-                    Earn direct rebate from every deposit and transaction of {selectedLevel} members.
+                    Earn direct rebate from every deposit and completed task of your downline.
                   </Text>
                 </View>
               </View>
@@ -353,10 +344,10 @@ export const TeamsScreen: React.FC<TeamsScreenProps> = ({ onBack }) => {
                 <Users size={16} color={Colors.secondary} style={{ marginRight: 10 }} />
                 <View style={{ flex: 1 }}>
                   <Text style={[Typography.bodySemiBold, { color: Colors.textPrimary }]}>
-                    Referral Link & Code
+                    Full Invitation Link
                   </Text>
                   <Text style={[Typography.caption, { color: Colors.textSecondary, marginTop: 2 }]}>
-                    Code: {teamData.invitationCode}
+                    {inviteLink}
                   </Text>
                 </View>
               </View>
@@ -403,18 +394,11 @@ const styles = StyleSheet.create({
     maxWidth: 600,
     alignSelf: 'center',
   },
-
-  // 1. Hero Card
   heroCardContainer: {
     borderRadius: BorderRadius.xl,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(124, 92, 252, 0.45)',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 8,
   },
   heroCardGradient: {
     padding: Spacing.md,
@@ -469,8 +453,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
-
-  // 2. Invitation Card
   invitationCard: {
     marginTop: Spacing.md,
     backgroundColor: Colors.surfaceElevated,
@@ -527,8 +509,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 13,
   },
-
-  // Level Selector Chips
   levelSelectorContainer: {
     flexDirection: 'row',
     marginTop: Spacing.md,
@@ -558,8 +538,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
   },
-
-  // 3 & 4. Section Cards (New Team Members, Commissions/Deposit)
   sectionCard: {
     marginTop: Spacing.sm,
     backgroundColor: Colors.surfaceElevated,
@@ -600,44 +578,22 @@ const styles = StyleSheet.create({
   },
   dataRowValue: {
     color: Colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-
-  // Commissions/Deposit Row
-  depositRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  depositAmountText: {
-    color: Colors.textSecondary,
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   viewDetailsLink: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginTop: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderSubtle,
   },
   viewDetailsText: {
     color: Colors.primary,
     fontSize: 13,
     fontWeight: '600',
   },
-  progressBarTrack: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    borderRadius: 3,
-    backgroundColor: Colors.primary,
-  },
-
-  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.75)',

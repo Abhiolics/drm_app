@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,55 +14,113 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import {
   Mail,
-  ArrowRight,
-  ShieldCheck,
-  CheckCircle2,
   Lock,
+  ArrowRight,
   ArrowLeft,
   Sparkles,
+  ShieldCheck,
+  RotateCw,
+  KeyRound,
+  User,
+  Phone,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '../theme/colors';
 import { BorderRadius, Spacing } from '../theme/spacing';
 import { Typography } from '../theme/typography';
+import { authService } from '../services/authService';
 
 interface LoginScreenProps {
   onLoginSuccess: () => void;
 }
 
-type LoginStep = 'email' | 'otp';
+type AuthMode = 'otp' | 'password' | 'register';
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
-  const [step, setStep] = useState<LoginStep>('email');
-  const [email, setEmail] = useState('katty@payapp.com');
+  const [authMode, setAuthMode] = useState<AuthMode>('password');
+  const [otpStep, setOtpStep] = useState<'send' | 'verify'>('send');
+
+  // Form Fields
+  const [email, setEmail] = useState('katty@dreampay.com');
+  const [password, setPassword] = useState('Password@123');
+  const [fullName, setFullName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState('');
+
   const [countdown, setCountdown] = useState(30);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successNotice, setSuccessNotice] = useState<string | null>(null);
 
   const otpInputRef = useRef<TextInput>(null);
 
   // Timer for resend OTP
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
-    if (step === 'otp' && countdown > 0) {
+    if (otpStep === 'verify' && countdown > 0) {
       interval = setInterval(() => {
         setCountdown((prev) => prev - 1);
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [step, countdown]);
+  }, [otpStep, countdown]);
 
-  const handleSendOtp = () => {
-    const trimmed = email.trim();
-    if (!trimmed || !trimmed.includes('@') || !trimmed.includes('.')) {
+  // 1. Password Login
+  const handlePasswordLogin = async () => {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !trimmedEmail.includes('@')) {
       setErrorMessage('Please enter a valid email address.');
-      try {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      } catch {
-        // Fallback
+      return;
+    }
+    if (!password) {
+      setErrorMessage('Please enter your password.');
+      return;
+    }
+
+    setErrorMessage(null);
+    setSuccessNotice(null);
+    setIsSubmitting(true);
+
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const res = await authService.login(trimmedEmail, password);
+      setIsSubmitting(false);
+
+      if (res.success) {
+        try {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } catch {
+          // Fallback
+        }
+        onLoginSuccess();
+      } else {
+        setErrorMessage(res.message || 'Login failed. Please check credentials.');
       }
+    } catch (err: any) {
+      setIsSubmitting(false);
+      setErrorMessage(
+        err.response?.data?.message || err.message || 'Unable to connect to DreamPay server.'
+      );
+    }
+  };
+
+  // 2. Register Account
+  const handleRegister = async () => {
+    const trimmedEmail = email.trim();
+    const trimmedName = fullName.trim();
+    const trimmedPhone = phoneNumber.trim();
+
+    if (!trimmedName) {
+      setErrorMessage('Please enter your full name.');
+      return;
+    }
+    if (!trimmedEmail || !trimmedEmail.includes('@')) {
+      setErrorMessage('Please enter a valid email address.');
+      return;
+    }
+    if (!password || password.length < 6) {
+      setErrorMessage('Password must be at least 6 characters.');
       return;
     }
 
@@ -71,27 +129,72 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    } catch {
-      // Fallback
-    }
-
-    setTimeout(() => {
+      const res = await authService.register(
+        trimmedName,
+        trimmedPhone || '9876543210',
+        trimmedEmail,
+        password
+      );
       setIsSubmitting(false);
-      setStep('otp');
-      setCountdown(30);
-      setOtp('');
-      setTimeout(() => otpInputRef.current?.focus(), 250);
-    }, 800);
+
+      if (res.success) {
+        try {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } catch {
+          // Fallback
+        }
+        onLoginSuccess();
+      } else {
+        setErrorMessage(res.message || 'Registration failed.');
+      }
+    } catch (err: any) {
+      setIsSubmitting(false);
+      setErrorMessage(
+        err.response?.data?.message || err.message || 'Registration failed. Try again.'
+      );
+    }
   };
 
-  const handleVerifyOtp = () => {
-    if (otp.length < 4) {
-      setErrorMessage('Please enter the 4-digit verification code.');
-      try {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      } catch {
-        // Fallback
+  // 3. Send OTP
+  const handleSendOtp = async () => {
+    const trimmed = email.trim();
+    if (!trimmed || !trimmed.includes('@')) {
+      setErrorMessage('Please enter a valid email address.');
+      return;
+    }
+
+    setErrorMessage(null);
+    setSuccessNotice(null);
+    setIsSubmitting(true);
+
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const res = await authService.sendOtp(trimmed);
+      setIsSubmitting(false);
+
+      if (res.success) {
+        setOtpStep('verify');
+        setCountdown(30);
+        setOtp(res.otp || '');
+        if (res.otp) {
+          setSuccessNotice(`Demo OTP: ${res.otp}`);
+        }
+        setTimeout(() => otpInputRef.current?.focus(), 250);
+      } else {
+        setErrorMessage(res.message || 'Failed to send OTP.');
       }
+    } catch (err: any) {
+      setIsSubmitting(false);
+      setErrorMessage(
+        err.response?.data?.message || err.message || 'No account found with this email. Please register.'
+      );
+    }
+  };
+
+  // 4. Verify OTP
+  const handleVerifyOtp = async () => {
+    if (otp.length < 4) {
+      setErrorMessage('Please enter the verification code.');
       return;
     }
 
@@ -99,26 +202,23 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     setIsSubmitting(true);
 
     try {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {
-      // Fallback
-    }
-
-    setTimeout(() => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const res = await authService.verifyOtp(email.trim(), otp.trim());
       setIsSubmitting(false);
-      onLoginSuccess();
-    }, 900);
-  };
 
-  const handleResendOtp = () => {
-    if (countdown > 0) return;
-    setCountdown(30);
-    setOtp('');
-    setErrorMessage(null);
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch {
-      // Fallback
+      if (res.success) {
+        try {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } catch {
+          // Fallback
+        }
+        onLoginSuccess();
+      } else {
+        setErrorMessage(res.message || 'Invalid or expired OTP.');
+      }
+    } catch (err: any) {
+      setIsSubmitting(false);
+      setErrorMessage(err.response?.data?.message || 'Verification failed. Try again.');
     }
   };
 
@@ -141,29 +241,71 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 colors={Colors.accentGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={styles.brandIconGradient}
+                style={styles.brandGradient}
               >
                 <ShieldCheck size={32} color="#FFFFFF" />
               </LinearGradient>
             </View>
 
             <View style={styles.titleRow}>
-              <Text style={styles.appName}>PayApp</Text>
+              <Text style={styles.appName}>DreamPay</Text>
               <Sparkles size={16} color={Colors.primary} style={{ marginLeft: 6 }} />
             </View>
 
             <Text style={styles.appTagline}>
-              {step === 'email'
-                ? 'Sign in to access your instant balance and rewards'
-                : 'Enter one-time password to verify identity'}
+              {authMode === 'register'
+                ? 'Create your verified DreamPay wallet account'
+                : 'Sign in to access your instant balance and rewards'}
             </Text>
           </View>
 
-          {/* Step 1: Email Input View */}
-          {step === 'email' && (
-            <View style={styles.formContainer}>
-              <Text style={styles.inputLabel}>Registered Email</Text>
+          {/* Mode Switcher Tabs */}
+          <View style={styles.modeTabs}>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => {
+                setAuthMode('password');
+                setErrorMessage(null);
+              }}
+              style={[styles.modeTab, authMode === 'password' && styles.modeTabActive]}
+            >
+              <Text style={[styles.modeTabText, authMode === 'password' && styles.modeTabTextActive]}>
+                Password
+              </Text>
+            </TouchableOpacity>
 
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => {
+                setAuthMode('otp');
+                setOtpStep('send');
+                setErrorMessage(null);
+              }}
+              style={[styles.modeTab, authMode === 'otp' && styles.modeTabActive]}
+            >
+              <Text style={[styles.modeTabText, authMode === 'otp' && styles.modeTabTextActive]}>
+                OTP Code
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => {
+                setAuthMode('register');
+                setErrorMessage(null);
+              }}
+              style={[styles.modeTab, authMode === 'register' && styles.modeTabActive]}
+            >
+              <Text style={[styles.modeTabText, authMode === 'register' && styles.modeTabTextActive]}>
+                Register
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Mode 1: Password Login */}
+          {authMode === 'password' && (
+            <View style={styles.formContainer}>
+              <Text style={styles.inputLabel}>Email Address</Text>
               <View style={styles.inputRow}>
                 <Mail size={18} color={Colors.textSecondary} style={{ marginRight: 10 }} />
                 <TextInput
@@ -181,14 +323,33 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 />
               </View>
 
-              {/* Quick Fill Demo Email */}
+              <Text style={[styles.inputLabel, { marginTop: 14 }]}>Password</Text>
+              <View style={styles.inputRow}>
+                <Lock size={18} color={Colors.textSecondary} style={{ marginRight: 10 }} />
+                <TextInput
+                  style={styles.textInput}
+                  value={password}
+                  onChangeText={(txt) => {
+                    setPassword(txt);
+                    setErrorMessage(null);
+                  }}
+                  placeholder="Enter password"
+                  placeholderTextColor={Colors.textMuted}
+                  secureTextEntry
+                />
+              </View>
+
+              {/* Demo Account shortcut */}
               <TouchableOpacity
                 activeOpacity={0.7}
-                onPress={() => setEmail('katty@payapp.com')}
+                onPress={() => {
+                  setEmail('katty@dreampay.com');
+                  setPassword('Password@123');
+                }}
                 style={styles.quickFillBtn}
               >
                 <Text style={styles.quickFillText}>
-                  Use Demo Account: <Text style={{ color: Colors.primary }}>katty@payapp.com</Text>
+                  Use Demo: <Text style={{ color: Colors.primary }}>katty@dreampay.com</Text> • Password@123
                 </Text>
               </TouchableOpacity>
 
@@ -200,7 +361,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
               <TouchableOpacity
                 activeOpacity={0.85}
-                onPress={handleSendOtp}
+                onPress={handlePasswordLogin}
                 disabled={isSubmitting}
                 style={styles.primaryBtn}
               >
@@ -214,7 +375,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
                     <>
-                      <Text style={styles.primaryBtnText}>Get OTP Code</Text>
+                      <Text style={styles.primaryBtnText}>Sign In</Text>
                       <ArrowRight size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
                     </>
                   )}
@@ -223,87 +384,223 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             </View>
           )}
 
-          {/* Step 2: OTP Verification View */}
-          {step === 'otp' && (
+          {/* Mode 2: OTP Login */}
+          {authMode === 'otp' && (
             <View style={styles.formContainer}>
-              <View style={styles.otpHeaderRow}>
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={() => {
-                    setStep('email');
-                    setErrorMessage(null);
-                  }}
-                  style={styles.backBtn}
-                >
-                  <ArrowLeft size={16} color={Colors.textSecondary} />
-                  <Text style={styles.backBtnText}>Change Email</Text>
-                </TouchableOpacity>
+              {otpStep === 'send' ? (
+                <>
+                  <Text style={styles.inputLabel}>Registered Email</Text>
+                  <View style={styles.inputRow}>
+                    <Mail size={18} color={Colors.textSecondary} style={{ marginRight: 10 }} />
+                    <TextInput
+                      style={styles.textInput}
+                      value={email}
+                      onChangeText={(txt) => {
+                        setEmail(txt);
+                        setErrorMessage(null);
+                      }}
+                      placeholder="name@example.com"
+                      placeholderTextColor={Colors.textMuted}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </View>
 
-                <View style={styles.sentEmailPill}>
-                  <Text style={styles.sentEmailText} numberOfLines={1}>
-                    {email}
-                  </Text>
-                </View>
-              </View>
+                  {errorMessage && (
+                    <View style={styles.errorContainer}>
+                      <Text style={styles.errorText}>{errorMessage}</Text>
+                    </View>
+                  )}
 
-              <Text style={styles.inputLabel}>Enter 4-Digit Verification Code</Text>
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={handleSendOtp}
+                    disabled={isSubmitting}
+                    style={styles.primaryBtn}
+                  >
+                    <LinearGradient
+                      colors={Colors.accentGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.primaryGradient}
+                    >
+                      {isSubmitting ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <>
+                          <Text style={styles.primaryBtnText}>Get OTP Code</Text>
+                          <ArrowRight size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
+                        </>
+                      )}
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <View style={styles.otpHeaderRow}>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        setOtpStep('send');
+                        setErrorMessage(null);
+                      }}
+                      style={styles.backBtn}
+                    >
+                      <ArrowLeft size={16} color={Colors.textSecondary} />
+                      <Text style={styles.backBtnText}>Change Email</Text>
+                    </TouchableOpacity>
 
-              {/* 4 Digit Boxes */}
-              <TouchableOpacity
-                activeOpacity={1}
-                onPress={() => otpInputRef.current?.focus()}
-                style={styles.otpBoxesRow}
-              >
-                {[0, 1, 2, 3].map((idx) => {
-                  const digit = otp[idx] || '';
-                  const isCurrent = otp.length === idx;
-                  return (
-                    <View
-                      key={idx}
+                    <View style={styles.sentEmailPill}>
+                      <Text style={styles.sentEmailText} numberOfLines={1}>
+                        {email}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text style={styles.inputLabel}>Enter Verification Code</Text>
+
+                  {/* 6 Digit Input */}
+                  <View style={styles.inputRow}>
+                    <KeyRound size={18} color={Colors.textSecondary} style={{ marginRight: 10 }} />
+                    <TextInput
+                      ref={otpInputRef}
+                      style={[styles.textInput, { fontSize: 20, letterSpacing: 4, fontWeight: '700' }]}
+                      value={otp}
+                      onChangeText={(txt) => {
+                        setOtp(txt.replace(/[^0-9]/g, '').slice(0, 6));
+                        setErrorMessage(null);
+                      }}
+                      placeholder="• • • • • •"
+                      placeholderTextColor={Colors.textMuted}
+                      keyboardType="number-pad"
+                      maxLength={6}
+                    />
+                  </View>
+
+                  {successNotice && (
+                    <View style={[styles.errorContainer, { backgroundColor: Colors.successBg, borderColor: 'rgba(57, 217, 138, 0.3)' }]}>
+                      <Text style={[styles.errorText, { color: Colors.success }]}>{successNotice}</Text>
+                    </View>
+                  )}
+
+                  {errorMessage && (
+                    <View style={styles.errorContainer}>
+                      <Text style={styles.errorText}>{errorMessage}</Text>
+                    </View>
+                  )}
+
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={handleVerifyOtp}
+                    disabled={isSubmitting}
+                    style={styles.primaryBtn}
+                  >
+                    <LinearGradient
+                      colors={Colors.accentGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.primaryGradient}
+                    >
+                      {isSubmitting ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Text style={styles.primaryBtnText}>Verify & Login</Text>
+                      )}
+                    </LinearGradient>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={handleSendOtp}
+                    disabled={countdown > 0}
+                    style={styles.resendRow}
+                  >
+                    <RotateCw
+                      size={14}
+                      color={countdown > 0 ? Colors.textMuted : Colors.primary}
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text
                       style={[
-                        styles.otpBox,
-                        isCurrent && styles.otpBoxActive,
-                        digit ? styles.otpBoxFilled : null,
+                        styles.resendText,
+                        countdown === 0 && { color: Colors.primary, fontWeight: '600' },
                       ]}
                     >
-                      <Text style={styles.otpDigitText}>{digit}</Text>
-                    </View>
-                  );
-                })}
-              </TouchableOpacity>
+                      {countdown > 0 ? `Resend Code in ${countdown}s` : 'Resend Code'}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          )}
 
-              {/* Hidden Actual Input */}
-              <TextInput
-                ref={otpInputRef}
-                style={styles.hiddenInput}
-                value={otp}
-                onChangeText={(val) => {
-                  const cleaned = val.replace(/[^0-9]/g, '').slice(0, 4);
-                  setOtp(cleaned);
-                  setErrorMessage(null);
-                  if (cleaned.length === 4) {
-                    try {
-                      Haptics.selectionAsync();
-                    } catch {
-                      // Fallback
-                    }
-                  }
-                }}
-                keyboardType="number-pad"
-                maxLength={4}
-                autoFocus={true}
-              />
+          {/* Mode 3: Register */}
+          {authMode === 'register' && (
+            <View style={styles.formContainer}>
+              <Text style={styles.inputLabel}>Full Name</Text>
+              <View style={styles.inputRow}>
+                <User size={18} color={Colors.textSecondary} style={{ marginRight: 10 }} />
+                <TextInput
+                  style={styles.textInput}
+                  value={fullName}
+                  onChangeText={(txt) => {
+                    setFullName(txt);
+                    setErrorMessage(null);
+                  }}
+                  placeholder="e.g. Amit Verma"
+                  placeholderTextColor={Colors.textMuted}
+                />
+              </View>
 
-              {/* Quick Fill Demo OTP Hint */}
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => setOtp('1234')}
-                style={styles.quickFillBtn}
-              >
-                <Text style={styles.quickFillText}>
-                  Tap to Fill Demo OTP: <Text style={{ color: Colors.success, fontWeight: '700' }}>1234</Text>
-                </Text>
-              </TouchableOpacity>
+              <Text style={[styles.inputLabel, { marginTop: 12 }]}>Phone Number</Text>
+              <View style={styles.inputRow}>
+                <Phone size={18} color={Colors.textSecondary} style={{ marginRight: 10 }} />
+                <TextInput
+                  style={styles.textInput}
+                  value={phoneNumber}
+                  onChangeText={(txt) => {
+                    setPhoneNumber(txt);
+                    setErrorMessage(null);
+                  }}
+                  placeholder="9876543210"
+                  placeholderTextColor={Colors.textMuted}
+                  keyboardType="phone-pad"
+                />
+              </View>
+
+              <Text style={[styles.inputLabel, { marginTop: 12 }]}>Email Address</Text>
+              <View style={styles.inputRow}>
+                <Mail size={18} color={Colors.textSecondary} style={{ marginRight: 10 }} />
+                <TextInput
+                  style={styles.textInput}
+                  value={email}
+                  onChangeText={(txt) => {
+                    setEmail(txt);
+                    setErrorMessage(null);
+                  }}
+                  placeholder="name@example.com"
+                  placeholderTextColor={Colors.textMuted}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <Text style={[styles.inputLabel, { marginTop: 12 }]}>Password</Text>
+              <View style={styles.inputRow}>
+                <Lock size={18} color={Colors.textSecondary} style={{ marginRight: 10 }} />
+                <TextInput
+                  style={styles.textInput}
+                  value={password}
+                  onChangeText={(txt) => {
+                    setPassword(txt);
+                    setErrorMessage(null);
+                  }}
+                  placeholder="Create password (min 6 chars)"
+                  placeholderTextColor={Colors.textMuted}
+                  secureTextEntry
+                />
+              </View>
 
               {errorMessage && (
                 <View style={styles.errorContainer}>
@@ -311,22 +608,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 </View>
               )}
 
-              {/* Resend Countdown */}
-              <View style={styles.resendRow}>
-                {countdown > 0 ? (
-                  <Text style={styles.resendTimerText}>
-                    Resend code in <Text style={{ color: Colors.primary }}>{countdown}s</Text>
-                  </Text>
-                ) : (
-                  <TouchableOpacity activeOpacity={0.7} onPress={handleResendOtp}>
-                    <Text style={styles.resendActionText}>Resend Code Now</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-
               <TouchableOpacity
                 activeOpacity={0.85}
-                onPress={handleVerifyOtp}
+                onPress={handleRegister}
                 disabled={isSubmitting}
                 style={styles.primaryBtn}
               >
@@ -340,8 +624,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
                     <>
-                      <Text style={styles.primaryBtnText}>Verify & Sign In</Text>
-                      <CheckCircle2 size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
+                      <Text style={styles.primaryBtnText}>Create Account</Text>
+                      <ArrowRight size={18} color="#FFFFFF" style={{ marginLeft: 8 }} />
                     </>
                   )}
                 </LinearGradient>
@@ -353,7 +637,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           <View style={styles.securityFooter}>
             <Lock size={14} color={Colors.textMuted} style={{ marginRight: 6 }} />
             <Text style={styles.securityFooterText}>
-              End-to-end encrypted session • Official PayApp Gateway
+              End-to-end encrypted session • Official DreamPay Gateway
             </Text>
           </View>
         </ScrollView>
@@ -369,213 +653,205 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.xxl,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.xl,
     paddingBottom: Spacing.xl,
-    justifyContent: 'center',
-    width: '100%',
-    maxWidth: 480,
-    alignSelf: 'center',
+    justifyContent: 'space-between',
   },
   brandHero: {
     alignItems: 'center',
-    marginBottom: Spacing.xxl,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.lg,
   },
   brandIconWrap: {
     width: 68,
     height: 68,
-    borderRadius: 34,
-    padding: 2,
-    backgroundColor: 'rgba(124, 92, 252, 0.2)',
+    borderRadius: 22,
+    padding: 3,
+    backgroundColor: Colors.surfaceElevated,
     borderWidth: 1,
     borderColor: Colors.borderAccent,
     marginBottom: Spacing.md,
   },
-  brandIconGradient: {
+  brandGradient: {
     flex: 1,
-    borderRadius: 32,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    marginBottom: Spacing.xs,
   },
   appName: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: '800',
-    fontFamily: Typography.h1.fontFamily,
-    letterSpacing: -0.5,
+    ...Typography.h1,
+    color: Colors.textPrimary,
+    letterSpacing: 0.5,
   },
   appTagline: {
+    ...Typography.bodySmall,
     color: Colors.textSecondary,
-    fontSize: 13,
     textAlign: 'center',
-    marginTop: 6,
-    paddingHorizontal: Spacing.md,
-    lineHeight: 18,
+    maxWidth: 280,
+    lineHeight: 20,
+    marginTop: 4,
   },
-  formContainer: {
+  modeTabs: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.full,
+    padding: 4,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  modeTab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: BorderRadius.full,
+  },
+  modeTabActive: {
     backgroundColor: Colors.surfaceElevated,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.xl,
     borderWidth: 1,
     borderColor: Colors.borderAccent,
-    shadowColor: Colors.primary,
+  },
+  modeTabText: {
+    ...Typography.caption,
+    color: Colors.textMuted,
+    fontWeight: '600',
+  },
+  modeTabTextActive: {
+    color: Colors.primary,
+    fontWeight: '700',
+  },
+  formContainer: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
+    shadowOpacity: 0.3,
     shadowRadius: 16,
-    elevation: 6,
+    elevation: 8,
   },
   inputLabel: {
-    color: Colors.textPrimary,
-    fontSize: 13,
+    ...Typography.caption,
+    color: Colors.textSecondary,
     fontWeight: '600',
     marginBottom: 8,
   },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.surfaceElevated,
     borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 14,
     borderWidth: 1,
     borderColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+    height: 52,
   },
   textInput: {
     flex: 1,
     color: Colors.textPrimary,
-    fontSize: 15,
+    ...Typography.body,
     padding: 0,
-    fontFamily: Typography.body.fontFamily,
   },
   quickFillBtn: {
     marginTop: 10,
-    alignSelf: 'flex-start',
+    paddingVertical: 4,
   },
   quickFillText: {
-    color: Colors.textSecondary,
-    fontSize: 11,
+    ...Typography.captionSmall,
+    color: Colors.textMuted,
   },
   errorContainer: {
-    backgroundColor: 'rgba(255, 92, 112, 0.12)',
+    backgroundColor: Colors.dangerBg,
     borderRadius: BorderRadius.sm,
-    padding: 10,
-    marginTop: 12,
+    padding: Spacing.sm,
+    marginTop: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.danger,
+    borderColor: 'rgba(255, 92, 112, 0.3)',
   },
   errorText: {
+    ...Typography.captionSmall,
     color: Colors.danger,
-    fontSize: 12,
-    fontWeight: '500',
     textAlign: 'center',
   },
   primaryBtn: {
+    marginTop: Spacing.lg,
     borderRadius: BorderRadius.full,
     overflow: 'hidden',
-    marginTop: Spacing.lg,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 6,
   },
   primaryGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
+    height: 52,
+    paddingHorizontal: Spacing.lg,
   },
   primaryBtnText: {
+    ...Typography.bodySemiBold,
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 15,
   },
-
-  // OTP Styles
   otpHeaderRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: Spacing.lg,
   },
   backBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 4,
   },
   backBtnText: {
+    ...Typography.captionSmall,
     color: Colors.textSecondary,
-    fontSize: 12,
     marginLeft: 4,
+    fontWeight: '500',
   },
   sentEmailPill: {
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.primaryMuted,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
     borderRadius: BorderRadius.full,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    maxWidth: 160,
-    borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    maxWidth: 150,
   },
   sentEmailText: {
-    color: Colors.textSecondary,
-    fontSize: 10,
-  },
-  otpBoxesRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginVertical: Spacing.md,
-  },
-  otpBox: {
-    width: 58,
-    height: 62,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.surface,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  otpBoxActive: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primaryLight,
-  },
-  otpBoxFilled: {
-    borderColor: Colors.borderAccent,
-  },
-  otpDigitText: {
-    color: Colors.textPrimary,
-    fontSize: 24,
-    fontWeight: '700',
-  },
-  hiddenInput: {
-    position: 'absolute',
-    opacity: 0,
-    width: 1,
-    height: 1,
+    ...Typography.captionSmall,
+    color: Colors.primary,
+    fontWeight: '600',
   },
   resendRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
+    justifyContent: 'center',
+    marginTop: Spacing.md,
+    paddingVertical: 4,
   },
-  resendTimerText: {
-    color: Colors.textSecondary,
-    fontSize: 12,
+  resendText: {
+    ...Typography.caption,
+    color: Colors.textMuted,
   },
-  resendActionText: {
-    color: Colors.primary,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-
-  // Footer
   securityFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: Spacing.xxl,
+    marginTop: Spacing.xl,
   },
   securityFooterText: {
+    ...Typography.captionSmall,
     color: Colors.textMuted,
-    fontSize: 11,
   },
 });
