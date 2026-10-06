@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,19 +14,15 @@ import { StatusBar } from 'expo-status-bar';
 import {
   User,
   Wallet,
-  Sparkles,
   Headphones,
-  Mail,
   ShieldCheck,
   Sliders,
-  Percent,
   ArrowDownToLine,
   ArrowUpFromLine,
   ChevronRight,
   LogOut,
   AlertTriangle,
   Gift,
-  FileText,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { Header } from '../components/Header';
@@ -46,6 +42,7 @@ interface AssetsScreenProps {
   onNavigateToService?: () => void;
   onNavigateToGiftReward?: () => void;
   onNavigateToDeposit?: () => void;
+  onNavigateToWithdraw?: () => void;
   onNavigateToHistory?: () => void;
   onLogout?: () => void;
 }
@@ -96,6 +93,7 @@ export const AssetsScreen: React.FC<AssetsScreenProps> = ({
   onNavigateToService,
   onNavigateToGiftReward,
   onNavigateToDeposit,
+  onNavigateToWithdraw,
   onNavigateToHistory,
   onLogout,
 }) => {
@@ -229,7 +227,7 @@ export const AssetsScreen: React.FC<AssetsScreenProps> = ({
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
 
       <Header
         title="My Asset"
@@ -284,6 +282,39 @@ export const AssetsScreen: React.FC<AssetsScreenProps> = ({
             >
               <Text style={styles.rulesText}>Add Funds</Text>
               <ChevronRight size={14} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Deposit & Withdraw Action Row */}
+          <View style={styles.actionRow}>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={styles.actionCard}
+              onPress={() => onNavigateToDeposit?.()}
+            >
+              <View style={[styles.actionIconWrap, { backgroundColor: Colors.primaryMuted }]}>
+                <ArrowDownToLine size={18} color={Colors.primary} />
+              </View>
+              <View style={styles.actionCardText}>
+                <Text style={styles.actionCardTitle}>Add Funds</Text>
+                <Text style={styles.actionCardSub}>Deposit money</Text>
+              </View>
+              <ChevronRight size={14} color={Colors.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={styles.actionCard}
+              onPress={() => onNavigateToWithdraw?.()}
+            >
+              <View style={[styles.actionIconWrap, { backgroundColor: 'rgba(239,68,68,0.08)' }]}>
+                <ArrowUpFromLine size={18} color={Colors.danger} />
+              </View>
+              <View style={styles.actionCardText}>
+                <Text style={styles.actionCardTitle}>Withdraw</Text>
+                <Text style={styles.actionCardSub}>Request payout</Text>
+              </View>
+              <ChevronRight size={14} color={Colors.textMuted} />
             </TouchableOpacity>
           </View>
 
@@ -423,7 +454,7 @@ const styles = StyleSheet.create({
     width: 68,
     height: 68,
     borderRadius: 34,
-    backgroundColor: 'rgba(124, 92, 252, 0.12)',
+    backgroundColor: Colors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -541,7 +572,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.82)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
@@ -549,12 +580,17 @@ const styles = StyleSheet.create({
   logoutModalCard: {
     width: '100%',
     maxWidth: 380,
-    backgroundColor: Colors.surfaceElevated,
+    backgroundColor: '#FFFFFF',
     borderRadius: BorderRadius.xl,
     padding: Spacing.xl,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 92, 112, 0.35)',
+    borderColor: '#E2E8F0',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 6,
   },
   logoutIconOuter: {
     width: 68,
@@ -622,5 +658,42 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 14,
+  },
+  // Deposit & Withdraw action row
+  actionRow: {
+    flexDirection: 'row',
+    gap: Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  actionCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  actionIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.xs,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionCardText: {
+    flex: 1,
+  },
+  actionCardTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  actionCardSub: {
+    fontSize: 10,
+    color: Colors.textMuted,
+    marginTop: 1,
   },
 });

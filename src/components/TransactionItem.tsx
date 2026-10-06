@@ -30,8 +30,8 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
             styles.iconContainer,
             {
               backgroundColor: isDeposit
-                ? 'rgba(57, 217, 138, 0.12)'
-                : 'rgba(255, 92, 112, 0.12)',
+                ? Colors.successBg
+                : Colors.dangerBg,
             },
           ]}
         >
@@ -57,7 +57,7 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
           style={[
             Typography.bodySemiBold,
             styles.amount,
-            { color: isDeposit ? Colors.success : Colors.danger },
+            { color: Colors.textPrimary },
           ]}
           numberOfLines={1}
           adjustsFontSizeToFit
@@ -66,8 +66,8 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
           {transaction.formattedAmount}
         </Text>
         <Badge
-          label={transaction.status}
-          variant={transaction.status === 'Completed' ? 'success' : 'neutral'}
+          label={transaction.status === 'Failed' ? 'Close' : transaction.status}
+          variant={transaction.status === 'Completed' ? 'success' : transaction.status === 'Failed' ? 'danger' : 'neutral'}
           size="sm"
           style={styles.badge}
         />
@@ -81,13 +81,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: Spacing.sm,
+    paddingVertical: 12,
     paddingHorizontal: Spacing.md,
-    backgroundColor: Colors.surface,
+    backgroundColor: '#FFFFFF',
     borderRadius: BorderRadius.md,
     marginBottom: Spacing.xs,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
     gap: Spacing.xs,
   },
   left: {
@@ -97,9 +102,9 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   iconContainer: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.sm,
@@ -111,10 +116,13 @@ const styles = StyleSheet.create({
   },
   title: {
     color: Colors.textPrimary,
+    fontWeight: '700',
+    fontSize: 14,
   },
   date: {
-    color: Colors.textSecondary,
+    color: Colors.textMuted,
     marginTop: 2,
+    fontSize: 11,
   },
   right: {
     alignItems: 'flex-end',
@@ -123,10 +131,12 @@ const styles = StyleSheet.create({
   },
   amount: {
     fontWeight: '700',
+    fontSize: 15,
   },
   badge: {
     marginTop: 4,
-    paddingVertical: 1,
-    paddingHorizontal: 6,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: BorderRadius.xs,
   },
 });

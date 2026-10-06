@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -112,7 +112,7 @@ export const TeamsScreen: React.FC<TeamsScreenProps> = ({ onBack }) => {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
 
       {/* Screen Header */}
       <Header
@@ -137,7 +137,7 @@ export const TeamsScreen: React.FC<TeamsScreenProps> = ({ onBack }) => {
         {/* 1. Hero Commission Card */}
         <View style={styles.heroCardContainer}>
           <LinearGradient
-            colors={['#2D1B68', '#1E1446', '#120F26']}
+            colors={Colors.heroGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 0.8, y: 1 }}
             style={styles.heroCardGradient}
@@ -398,7 +398,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.xl,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(124, 92, 252, 0.45)',
+    borderColor: Colors.borderAccent,
   },
   heroCardGradient: {
     padding: Spacing.md,
@@ -411,10 +411,10 @@ const styles = StyleSheet.create({
     width: 140,
     height: 140,
     borderRadius: 70,
-    backgroundColor: 'rgba(124, 92, 252, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
   },
   heroCommissionLabel: {
-    color: 'rgba(255, 255, 255, 0.78)',
+    color: 'rgba(255, 255, 255, 0.85)',
     textAlign: 'center',
     marginBottom: 4,
     fontSize: 13,
@@ -435,15 +435,15 @@ const styles = StyleSheet.create({
   },
   metricCard: {
     width: '48.5%',
-    backgroundColor: 'rgba(9, 8, 14, 0.76)',
+    backgroundColor: 'rgba(0, 0, 0, 0.15)',
     borderRadius: BorderRadius.sm,
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   metricCardLabel: {
-    color: Colors.textSecondary,
+    color: 'rgba(255, 255, 255, 0.85)',
     fontSize: 11,
     fontWeight: '500',
     marginBottom: 4,
@@ -455,14 +455,19 @@ const styles = StyleSheet.create({
   },
   invitationCard: {
     marginTop: Spacing.md,
-    backgroundColor: Colors.surfaceElevated,
+    backgroundColor: '#FFFFFF',
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
-    borderColor: Colors.borderAccent,
+    borderColor: '#E2E8F0',
     padding: Spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   invitationLeft: {
     flexDirection: 'row',
@@ -475,7 +480,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     backgroundColor: Colors.primaryLight,
     borderWidth: 1,
-    borderColor: 'rgba(124, 92, 252, 0.3)',
+    borderColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.sm,
@@ -535,16 +540,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   levelChipTextActive: {
-    color: '#FFFFFF',
+    color: Colors.primary,
     fontWeight: '700',
   },
   sectionCard: {
     marginTop: Spacing.sm,
-    backgroundColor: Colors.surfaceElevated,
+    backgroundColor: '#FFFFFF',
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
-    borderColor: Colors.borderAccent,
+    borderColor: '#E2E8F0',
     overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   sectionCardHeader: {
     paddingHorizontal: Spacing.md,
@@ -596,7 +606,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
@@ -604,12 +614,17 @@ const styles = StyleSheet.create({
   modalContainer: {
     width: '100%',
     maxWidth: 380,
-    backgroundColor: Colors.surfaceElevated,
+    backgroundColor: '#FFFFFF',
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
-    borderColor: Colors.borderAccent,
+    borderColor: '#E2E8F0',
     overflow: 'hidden',
     padding: Spacing.lg,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 6,
   },
   modalHeader: {
     flexDirection: 'row',

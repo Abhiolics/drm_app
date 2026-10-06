@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -108,7 +108,7 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
 
       <Header title="VIP Stats" showBack={showBack} onBack={onBack} centerTitle />
 
@@ -134,7 +134,7 @@ export const StatsScreen: React.FC<StatsScreenProps> = ({
             {/* Top Hero Card with Live Balances */}
             <View style={styles.heroCard}>
               <LinearGradient
-                colors={['#241B4B', '#16132D', '#111019']}
+                colors={Colors.heroGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.heroGradient}
@@ -353,12 +353,12 @@ const styles = StyleSheet.create({
   },
   heroMetricsBox: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    backgroundColor: 'rgba(0, 0, 0, 0.15)',
     borderRadius: BorderRadius.sm,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.sm,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
   },
   heroMetricItem: {
@@ -367,32 +367,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
   },
   metricName: {
-    color: Colors.textMuted,
+    color: 'rgba(255, 255, 255, 0.85)',
     fontSize: 11,
     marginBottom: 2,
     textAlign: 'center',
   },
   metricVal: {
-    color: Colors.textPrimary,
+    color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 13,
     textAlign: 'center',
   },
   heroDivider: {
     width: 1,
-    backgroundColor: Colors.borderSubtle,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     marginVertical: 4,
   },
   noticeBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(124, 92, 252, 0.1)',
+    backgroundColor: Colors.primaryMuted,
     borderRadius: BorderRadius.sm,
     paddingVertical: 10,
     paddingHorizontal: Spacing.md,
     marginBottom: Spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(124, 92, 252, 0.25)',
+    borderColor: Colors.borderAccent,
     gap: Spacing.xs,
   },
   noticeIconWrap: {

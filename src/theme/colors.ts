@@ -1,44 +1,56 @@
 export const Colors = {
-  // Brand Accents (Replacing original yellow/gold with premium purple/indigo system)
-  primary: '#7C5CFC',
-  primaryGlow: 'rgba(124, 92, 252, 0.35)',
-  primaryLight: 'rgba(124, 92, 252, 0.15)',
-  primaryMuted: 'rgba(124, 92, 252, 0.08)',
-  secondary: '#5B8CFF',
-  secondaryGlow: 'rgba(91, 140, 255, 0.30)',
-  
-  // Base & Surfaces
-  background: '#09080D',
-  surface: '#111019',
-  surfaceElevated: '#171521',
-  surfaceGlass: 'rgba(255, 255, 255, 0.055)',
-  surfaceGlassStrong: 'rgba(255, 255, 255, 0.09)',
-  
-  // Borders
-  border: 'rgba(255, 255, 255, 0.10)',
-  borderSubtle: 'rgba(255, 255, 255, 0.06)',
-  borderAccent: 'rgba(124, 92, 252, 0.40)',
+  // Brand Accents - Rich Emerald Green Fintech System (as in reference image)
+  primary: '#00A86B',
+  primaryDark: '#00875A',
+  primaryLight: '#E8F5E9',
+  primaryMuted: 'rgba(0, 168, 107, 0.08)',
+  primaryGlow: 'rgba(0, 168, 107, 0.25)',
 
-  // Typography
-  textPrimary: '#F5F3FA',
-  textSecondary: '#8F8B9C',
-  textMuted: '#5E5A6E',
-  textInverse: '#09080D',
+  // Secondary Accents
+  secondary: '#2563EB',
+  secondaryLight: '#EFF6FF',
+  secondaryGlow: 'rgba(37, 99, 235, 0.18)',
+
+  // Warm Accents (Wallet center button & highlights)
+  amber: '#F59E0B',
+  amberLight: '#FEF3C7',
+  gold: '#FBBF24',
+
+  // Base & Surfaces (Clean light surfaces)
+  background: '#F5F7FA',
+  surface: '#FFFFFF',
+  surfaceElevated: '#F8FAFC',
+  surfaceMuted: '#F1F5F9',
+  surfaceGlass: 'rgba(255, 255, 255, 0.90)',
+  surfaceGlassStrong: '#FFFFFF',
+
+  // Borders
+  border: '#E2E8F0',
+  borderSubtle: '#F1F5F9',
+  borderAccent: 'rgba(0, 168, 107, 0.35)',
+
+  // Typography (Dark charcoal on light backgrounds)
+  textPrimary: '#111827',
+  textSecondary: '#4B5563',
+  textMuted: '#9CA3AF',
+  textInverse: '#FFFFFF',
 
   // Status & Feedback
-  success: '#39D98A',
-  successBg: 'rgba(57, 217, 138, 0.12)',
-  danger: '#FF5C70',
-  dangerBg: 'rgba(255, 92, 112, 0.12)',
-  warning: '#FFB020',
-  warningBg: 'rgba(255, 176, 32, 0.12)',
-  info: '#5B8CFF',
-  infoBg: 'rgba(91, 140, 255, 0.12)',
+  success: '#00A86B',
+  successBg: '#DCFCE7',
+  danger: '#EF4444',
+  dangerBg: '#FEE2E2',
+  warning: '#F59E0B',
+  warningBg: '#FEF3C7',
+  info: '#2563EB',
+  infoBg: '#DBEAFE',
 
   // Gradients
-  accentGradient: ['#7C5CFC', '#5B8CFF'] as const,
-  cardGradient: ['rgba(23, 21, 33, 0.85)', 'rgba(17, 16, 25, 0.95)'] as const,
-  heroGradient: ['#1C1635', '#121020', '#0D0C15'] as const,
-  glowGradient: ['rgba(124, 92, 252, 0.22)', 'rgba(91, 140, 255, 0.04)'] as const,
-  navGradient: ['rgba(17, 16, 25, 0.92)', 'rgba(9, 8, 13, 0.96)'] as const,
+  heroGradient: ['#00A86B', '#00955E', '#00875A'] as const,
+  accentGradient: ['#00A86B', '#059669'] as const,
+  cardGradient: ['#FFFFFF', '#FFFFFF'] as const,
+  glowGradient: ['rgba(0, 168, 107, 0.12)', 'rgba(0, 168, 107, 0.02)'] as const,
+  navGradient: ['#FFFFFF', '#FFFFFF'] as const,
+  amberGradient: ['#F59E0B', '#D97706'] as const,
+  blueGradient: ['#3B82F6', '#2563EB'] as const,
 };

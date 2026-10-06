@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as ImagePicker from 'expo-image-picker';
-import Svg, { Rect, Path, G } from 'react-native-svg';
+import QRCode from 'react-native-qrcode-svg';
 import {
   Copy,
   Check,
@@ -39,86 +39,14 @@ interface DepositScreenProps {
 
 const OFFICIAL_UPI_ID = '894738783@okaxis';
 
-// Vector QR Code Component (UPI Intent for DreamPay)
-const SvgQRCode = ({ size = 200 }: { size?: number }) => {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 120 120">
-      {/* Background White */}
-      <Rect x="0" y="0" width="120" height="120" fill="#FFFFFF" rx="8" />
 
-      {/* Top Left Finder Pattern */}
-      <Rect x="10" y="10" width="30" height="30" fill="#09080D" rx="4" />
-      <Rect x="16" y="16" width="18" height="18" fill="#FFFFFF" rx="2" />
-      <Rect x="20" y="20" width="10" height="10" fill="#09080D" rx="1" />
 
-      {/* Top Right Finder Pattern */}
-      <Rect x="80" y="10" width="30" height="30" fill="#09080D" rx="4" />
-      <Rect x="86" y="16" width="18" height="18" fill="#FFFFFF" rx="2" />
-      <Rect x="90" y="20" width="10" height="10" fill="#09080D" rx="1" />
-
-      {/* Bottom Left Finder Pattern */}
-      <Rect x="10" y="80" width="30" height="30" fill="#09080D" rx="4" />
-      <Rect x="16" y="86" width="18" height="18" fill="#FFFFFF" rx="2" />
-      <Rect x="20" y="90" width="10" height="10" fill="#09080D" rx="1" />
-
-      {/* Alignment Matrix Pattern (Simulated authentic QR data cells) */}
-      <G fill="#09080D">
-        {/* Timing Lines */}
-        <Rect x="44" y="22" width="4" height="4" />
-        <Rect x="52" y="22" width="4" height="4" />
-        <Rect x="60" y="22" width="4" height="4" />
-        <Rect x="68" y="22" width="4" height="4" />
-        <Rect x="22" y="44" width="4" height="4" />
-        <Rect x="22" y="52" width="4" height="4" />
-        <Rect x="22" y="60" width="4" height="4" />
-        <Rect x="22" y="68" width="4" height="4" />
-
-        {/* Central Data Clusters */}
-        <Rect x="48" y="48" width="10" height="10" rx="2" />
-        <Rect x="64" y="48" width="8" height="6" />
-        <Rect x="78" y="48" width="6" height="8" />
-        <Rect x="48" y="64" width="8" height="8" />
-        <Rect x="62" y="62" width="10" height="6" />
-        <Rect x="76" y="62" width="8" height="8" />
-        <Rect x="92" y="48" width="6" height="6" />
-        <Rect x="92" y="58" width="8" height="6" />
-        <Rect x="48" y="78" width="6" height="10" />
-        <Rect x="60" y="78" width="8" height="8" />
-        <Rect x="74" y="76" width="6" height="10" />
-        <Rect x="86" y="78" width="8" height="6" />
-        <Rect x="98" y="78" width="8" height="8" />
-
-        {/* Outer Data Cells */}
-        <Rect x="10" y="46" width="6" height="6" />
-        <Rect x="10" y="56" width="8" height="6" />
-        <Rect x="10" y="66" width="6" height="8" />
-        <Rect x="44" y="10" width="6" height="6" />
-        <Rect x="54" y="10" width="8" height="6" />
-        <Rect x="66" y="10" width="6" height="8" />
-        <Rect x="80" y="44" width="8" height="6" />
-        <Rect x="104" y="44" width="6" height="8" />
-        <Rect x="44" y="94" width="6" height="8" />
-        <Rect x="54" y="94" width="8" height="6" />
-        <Rect x="66" y="94" width="6" height="8" />
-        <Rect x="76" y="94" width="8" height="6" />
-        <Rect x="88" y="94" width="6" height="8" />
-        <Rect x="98" y="94" width="8" height="8" />
-        <Rect x="44" y="106" width="8" height="6" />
-        <Rect x="58" y="106" width="6" height="6" />
-        <Rect x="70" y="106" width="8" height="6" />
-        <Rect x="84" y="106" width="6" height="6" />
-        <Rect x="96" y="106" width="8" height="6" />
-      </G>
-
-      {/* PayApp Center Watermark / Logo Shield */}
-      <Rect x="52" y="52" width="16" height="16" fill="#7C5CFC" rx="4" />
-      <Path
-        d="M57 63 L60 55 L63 63 Z"
-        fill="#FFFFFF"
-      />
-    </Svg>
-  );
-};
+interface ProofAsset {
+  uri: string;
+  name: string;
+  type: string;
+  base64?: string | null;
+}
 
 export const DepositScreen: React.FC<DepositScreenProps> = ({
   onBack,
@@ -126,10 +54,10 @@ export const DepositScreen: React.FC<DepositScreenProps> = ({
   onSuccess,
 }) => {
   const { refreshUser } = useAuth();
-  const amount = offer ? String(offer.amount) : '1000';
+  const [amount, setAmount] = useState(offer?.amount ? String(offer.amount) : '500');
   const [utrNumber, setUtrNumber] = useState('');
   const [copiedUpi, setCopiedUpi] = useState(false);
-  const [uploadedProof, setUploadedProof] = useState<string | null>(null);
+  const [uploadedProof, setUploadedProof] = useState<ProofAsset | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -166,11 +94,32 @@ export const DepositScreen: React.FC<DepositScreenProps> = ({
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
-        quality: 0.8,
+        quality: 0.3,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setUploadedProof(result.assets[0].uri);
+        const asset = result.assets[0];
+
+        let filename = asset.fileName;
+        if (!filename) {
+          const rawUri = asset.uri.split('?')[0];
+          const parts = rawUri.split('/');
+          filename = parts[parts.length - 1] || `receipt_${Date.now()}.jpg`;
+        }
+
+        filename = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+        if (!filename.includes('.')) {
+          filename += '.jpg';
+        }
+
+        const mimeType = asset.mimeType || (filename.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg');
+
+        setUploadedProof({
+          uri: asset.uri,
+          name: filename,
+          type: mimeType,
+          base64: asset.base64 ? `data:${mimeType};base64,${asset.base64}` : null,
+        });
         setValidationError(null);
       }
     } catch {
@@ -179,6 +128,12 @@ export const DepositScreen: React.FC<DepositScreenProps> = ({
   };
 
   const handleConfirmPayment = async () => {
+    const numAmt = Number(amount);
+    if (!numAmt || numAmt <= 0) {
+      setValidationError('Please specify a valid deposit amount.');
+      return;
+    }
+
     if (!utrNumber.trim() || utrNumber.trim().length < 8) {
       setValidationError('Please enter a valid 12-digit UTR number from your payment receipt.');
       try {
@@ -203,11 +158,20 @@ export const DepositScreen: React.FC<DepositScreenProps> = ({
     setIsSubmitting(true);
 
     try {
+      const rawPlanId = (offer as any)?._id || (offer as any)?.planId || offer?.id;
+      const validPlanId =
+        rawPlanId && /^[0-9a-fA-F]{24}$/.test(String(rawPlanId).trim())
+          ? String(rawPlanId).trim()
+          : undefined;
+
       const res = await depositService.submitDeposit({
         amount,
         transactionRef: utrNumber.trim(),
-        imageUri: uploadedProof,
-        planId: offer?.id,
+        imageUri: uploadedProof.uri,
+        fileName: uploadedProof.name,
+        mimeType: uploadedProof.type,
+        base64Data: uploadedProof.base64,
+        planId: validPlanId,
       });
 
       setIsSubmitting(false);
@@ -227,14 +191,14 @@ export const DepositScreen: React.FC<DepositScreenProps> = ({
     } catch (err: any) {
       setIsSubmitting(false);
       setValidationError(
-        err.response?.data?.message || 'Error submitting deposit request to DreamPay.'
+        err.response?.data?.message || err.message || 'Error submitting deposit request to DreamPay.'
       );
     }
   };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
 
       {/* Screen Header */}
       <Header
@@ -249,6 +213,37 @@ export const DepositScreen: React.FC<DepositScreenProps> = ({
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
+        {/* Deposit Amount Card */}
+        <View style={styles.amountCard}>
+          <Text style={styles.amountCardLabel}>Deposit Amount</Text>
+          {offer ? (
+            <View style={styles.amountFixedRow}>
+              <Text style={styles.amountFixedCurrency}>₹</Text>
+              <Text style={styles.amountFixedValue}>{offer.amount}</Text>
+              {(offer as any).tier && (
+                <View style={styles.planBadge}>
+                  <Text style={styles.planBadgeText}>{(offer as any).tier}</Text>
+                </View>
+              )}
+            </View>
+          ) : (
+            <View style={styles.amountInputRow}>
+              <Text style={styles.amountFixedCurrency}>₹</Text>
+              <TextInput
+                style={styles.amountInputText}
+                value={amount}
+                onChangeText={(txt) => {
+                  setAmount(txt.replace(/[^0-9]/g, ''));
+                  setValidationError(null);
+                }}
+                keyboardType="numeric"
+                placeholder="Enter deposit amount"
+                placeholderTextColor={Colors.textMuted}
+              />
+            </View>
+          )}
+        </View>
+
         {/* UPI ID Row matching reference */}
         <View style={styles.upiRow}>
           <View style={styles.upiPill}>
@@ -277,7 +272,7 @@ export const DepositScreen: React.FC<DepositScreenProps> = ({
           </TouchableOpacity>
         </View>
 
-        {/* 2. QR Code Section matching reference */}
+        {/* 2. QR Code Section */}
         <View style={styles.qrSectionWrapper}>
           <View style={styles.qrCodeCard}>
             {paymentMethods?.qrCode?.imageUrl ? (
@@ -287,7 +282,13 @@ export const DepositScreen: React.FC<DepositScreenProps> = ({
                 resizeMode="contain"
               />
             ) : (
-              <SvgQRCode size={220} />
+              <QRCode
+                value={`upi://pay?pa=${encodeURIComponent(activeUpiId)}&pn=DreamPay&cu=INR&am=${amount || ''}`}
+                size={220}
+                color="#09080D"
+                backgroundColor="#FFFFFF"
+                ecl="M"
+              />
             )}
           </View>
 
@@ -340,7 +341,7 @@ export const DepositScreen: React.FC<DepositScreenProps> = ({
                 <View style={styles.uploadedFileContent}>
                   <FileCheck size={16} color={Colors.success} style={{ marginRight: 6 }} />
                   <Text style={styles.uploadedFileName} numberOfLines={1}>
-                    {uploadedProof}
+                    {uploadedProof.name}
                   </Text>
                 </View>
               ) : (
@@ -471,6 +472,62 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 600,
     alignSelf: 'center',
+  },
+
+  // Amount Card
+  amountCard: {
+    backgroundColor: Colors.surfaceElevated,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.borderAccent,
+    padding: Spacing.md,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
+  amountCardLabel: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginBottom: 4,
+    fontWeight: '500',
+  },
+  amountFixedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  amountInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  amountFixedCurrency: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  amountFixedValue: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+  },
+  amountInputText: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+    flex: 1,
+    padding: 0,
+    marginLeft: 4,
+  },
+  planBadge: {
+    backgroundColor: Colors.primaryLight,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  planBadgeText: {
+    color: Colors.primary,
+    fontSize: 11,
+    fontWeight: '700',
   },
 
   // UPI Row
@@ -636,7 +693,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginTop: Spacing.sm,
     borderWidth: 1,
-    borderColor: 'rgba(124, 92, 252, 0.4)',
+    borderColor: Colors.primary,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -658,7 +715,7 @@ const styles = StyleSheet.create({
   // Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
@@ -666,12 +723,17 @@ const styles = StyleSheet.create({
   modalContainer: {
     width: '100%',
     maxWidth: 380,
-    backgroundColor: Colors.surfaceElevated,
+    backgroundColor: '#FFFFFF',
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
-    borderColor: Colors.borderAccent,
+    borderColor: '#E2E8F0',
     padding: Spacing.xl,
     alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 6,
   },
   successIconOuter: {
     width: 72,

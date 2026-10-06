@@ -61,13 +61,18 @@ export const authService = {
       email: email.trim().toLowerCase(),
       otp: otp.trim(),
     });
-    if (res.data.success && res.data.token) {
-      await AsyncStorage.setItem('user_token', res.data.token);
-      if (res.data.data) {
-        await AsyncStorage.setItem('user_profile', JSON.stringify(res.data.data));
+    const token = res.data.token || (res.data as any).data?.token || (res.data as any).accessToken;
+    if (res.data.success && token) {
+      await AsyncStorage.setItem('user_token', token);
+      const profile = res.data.data || (res.data as any).user;
+      if (profile) {
+        await AsyncStorage.setItem('user_profile', JSON.stringify(profile));
       }
     }
-    return res.data;
+    return {
+      ...res.data,
+      token: token || res.data.token,
+    };
   },
 
   // Get Current Authenticated Profile with Wallet & Active Plan

@@ -8,7 +8,6 @@ import { PaymentHistoryScreen } from '../screens/PaymentHistoryScreen';
 import { PaymentDetailScreen } from '../screens/PaymentDetailScreen';
 import { TaskRewardsScreen } from '../screens/TaskRewardsScreen';
 import { TaskDetailScreen } from '../screens/TaskDetailScreen';
-import { StatsScreen } from '../screens/StatsScreen';
 import { AssetsScreen } from '../screens/AssetsScreen';
 import { TeamsScreen } from '../screens/TeamsScreen';
 import { ServiceScreen } from '../screens/ServiceScreen';
@@ -17,6 +16,9 @@ import { AccountScreen } from '../screens/AccountScreen';
 import { GiftRewardScreen } from '../screens/GiftRewardScreen';
 import { SplashScreen } from '../screens/SplashScreen';
 import { LoginScreen } from '../screens/LoginScreen';
+import { PlansScreen } from '../screens/PlansScreen';
+import { StatsScreen } from '../screens/StatsScreen';
+import { WithdrawalScreen } from '../screens/WithdrawalScreen';
 import { PaymentItem, TaskItem, OfferItem } from '../types';
 
 import { AuthProvider, useAuth } from '../context/AuthContext';
@@ -30,6 +32,7 @@ export type RootStackParamList = {
   Deposit: { offer?: OfferItem };
   Account: undefined;
   GiftReward: undefined;
+  Withdrawal: undefined;
 };
 
 function MainTabsScreen({
@@ -42,6 +45,7 @@ function MainTabsScreen({
   onNavigateToDeposit,
   onNavigateToAccount,
   onNavigateToGiftReward,
+  onNavigateToWithdraw,
   onLogout,
 }: {
   currentTab: TabName;
@@ -53,6 +57,7 @@ function MainTabsScreen({
   onNavigateToDeposit: (offer?: OfferItem) => void;
   onNavigateToAccount: () => void;
   onNavigateToGiftReward: () => void;
+  onNavigateToWithdraw: () => void;
   onLogout: () => void;
 }) {
   const renderScreen = () => {
@@ -65,6 +70,15 @@ function MainTabsScreen({
             onNavigateToTasks={() => onSelectTab('Tasks')}
             onNavigateToAssets={() => onSelectTab('Assets')}
             onNavigateToTeams={onNavigateToTeams}
+            onNavigateToPlans={() => onSelectTab('Plan')}
+          />
+        );
+      case 'Plan':
+        return (
+          <PlansScreen
+            onBack={() => onSelectTab('Home')}
+            onNavigateToDeposit={onNavigateToDeposit}
+            showBack={false}
           />
         );
       case 'Payments':
@@ -103,6 +117,7 @@ function MainTabsScreen({
             onNavigateToService={onNavigateToService}
             onNavigateToGiftReward={onNavigateToGiftReward}
             onNavigateToDeposit={() => onNavigateToDeposit()}
+            onNavigateToWithdraw={onNavigateToWithdraw}
             onNavigateToHistory={() => onSelectTab('Payments')}
             onLogout={onLogout}
             showBack={false}
@@ -131,14 +146,14 @@ function MainTabsScreen({
 }
 
 const AppNavigatorInner: React.FC = () => {
-  const { isLoggedIn, isLoading, logout } = useAuth();
+  const { isLoggedIn, isLoading, logout, refreshUser } = useAuth();
   const [showSplash, setShowSplash] = useState(true);
   const [currentTab, setCurrentTab] = useState<TabName>('Home');
   const [activePaymentItem, setActivePaymentItem] = useState<PaymentItem | undefined>();
   const [activeTaskItem, setActiveTaskItem] = useState<TaskItem | undefined>();
   const [activeOffer, setActiveOffer] = useState<OfferItem | undefined>();
   const [currentStackRoute, setCurrentStackRoute] = useState<
-    'Tabs' | 'PaymentDetail' | 'TaskDetail' | 'Teams' | 'Service' | 'Deposit' | 'Account' | 'GiftReward'
+    'Tabs' | 'PaymentDetail' | 'TaskDetail' | 'Teams' | 'Service' | 'Deposit' | 'Account' | 'GiftReward' | 'Withdrawal'
   >('Tabs');
 
   if (showSplash || isLoading) {
@@ -148,7 +163,8 @@ const AppNavigatorInner: React.FC = () => {
   if (!isLoggedIn) {
     return (
       <LoginScreen
-        onLoginSuccess={() => {
+        onLoginSuccess={async () => {
+          await refreshUser();
           setCurrentTab('Home');
           setCurrentStackRoute('Tabs');
         }}
@@ -159,7 +175,7 @@ const AppNavigatorInner: React.FC = () => {
   return (
     <NavigationContainer
       theme={{
-        dark: true,
+        dark: false,
         colors: {
           primary: Colors.primary,
           background: Colors.background,
@@ -204,6 +220,9 @@ const AppNavigatorInner: React.FC = () => {
             }}
             onNavigateToGiftReward={() => {
               setCurrentStackRoute('GiftReward');
+            }}
+            onNavigateToWithdraw={() => {
+              setCurrentStackRoute('Withdrawal');
             }}
             onLogout={async () => {
               await logout();
@@ -254,6 +273,12 @@ const AppNavigatorInner: React.FC = () => {
 
         {currentStackRoute === 'GiftReward' && (
           <GiftRewardScreen
+            onBack={() => setCurrentStackRoute('Tabs')}
+          />
+        )}
+
+        {currentStackRoute === 'Withdrawal' && (
+          <WithdrawalScreen
             onBack={() => setCurrentStackRoute('Tabs')}
           />
         )}

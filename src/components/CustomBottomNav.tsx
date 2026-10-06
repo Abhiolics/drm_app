@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   View,
+  Text,
   StyleSheet,
   TouchableOpacity,
   Platform,
@@ -14,20 +15,55 @@ import Animated, {
 } from 'react-native-reanimated';
 import {
   Home,
-  Receipt,
-  Plus,
-  BarChart3,
+  CreditCard,
+  Wallet,
+  Users2,
   User,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '../theme/colors';
-import { BorderRadius, Spacing } from '../theme/spacing';
+import { BorderRadius } from '../theme/spacing';
 
-export type TabName = 'Home' | 'Payments' | 'Account' | 'Stats' | 'Assets' | 'Tasks';
+export type TabName = 'Home' | 'Plan' | 'Account' | 'Stats' | 'Assets' | 'Payments' | 'Tasks';
+
+/**
+ * Calculates dynamic bottom offset that adapts seamlessly between:
+ * 1. Traditional 3-button navigation (Back/Home/Recents) on Android
+ * 2. Gesture pill / home indicator navigation on Android & iOS
+ * 3. Standard viewport devices (e.g. iPhone SE, desktop/web)
+ */
+export const getNavBottomOffset = (insetsBottom: number): number => {
+  if (Platform.OS === 'android') {
+    if (insetsBottom === 0) {
+      // Android with 3-button navigation (standard system bar outside viewport)
+      return 10;
+    } else if (insetsBottom >= 40) {
+      // Android with 3-button navigation rendered edge-to-edge inside viewport
+      return insetsBottom + 6;
+    } else {
+      // Android with gesture navigation (safe inset typically 16-28dp)
+      return insetsBottom + 6;
+    }
+  } else if (Platform.OS === 'ios') {
+    if (insetsBottom === 0) {
+      // Older iPhone SE / physical Home button
+      return 10;
+    } else {
+      // Modern iPhone with gesture home bar (insetsBottom typically 34dp)
+      return insetsBottom;
+    }
+  } else {
+    // Web / desktop
+    return 16;
+  }
+};
 
 export const useBottomNavPadding = () => {
   const insets = useSafeAreaInsets();
-  return Math.max(insets.bottom > 0 ? insets.bottom + 8 : 16, 16) + 64 + 20;
+  const bottomOffset = getNavBottomOffset(insets.bottom);
+  const navBarHeight = 70;
+  const bottomBuffer = 20; // Extra breathing room for scroll lists
+  return bottomOffset + navBarHeight + bottomBuffer;
 };
 
 interface CustomBottomNavProps {
@@ -43,10 +79,10 @@ interface NavItemConfig {
 
 const NAV_ITEMS: NavItemConfig[] = [
   { id: 'Home', label: 'Home', icon: Home },
-  { id: 'Payments', label: 'Payments', icon: Receipt },
-  { id: 'Account', label: 'Account', icon: Plus },
-  { id: 'Stats', label: 'Stats', icon: BarChart3 },
-  { id: 'Assets', label: 'Assets', icon: User },
+  { id: 'Plan', label: 'Payments', icon: CreditCard },
+  { id: 'Account', label: 'Add account', icon: Wallet },
+  { id: 'Stats', label: 'Stats', icon: Users2 },
+  { id: 'Assets', label: 'My Assets', icon: User },
 ];
 
 const TabButton: React.FC<{
@@ -54,14 +90,14 @@ const TabButton: React.FC<{
   isActive: boolean;
   onPress: () => void;
 }> = ({ item, isActive, onPress }) => {
-  const scale = useSharedValue(isActive ? 1.08 : 1);
+  const scale = useSharedValue(isActive ? 1.05 : 1);
   const IconComp = item.icon;
   const isCenter = item.id === 'Account';
 
   React.useEffect(() => {
-    scale.value = withSpring(isActive ? 1.12 : 1, {
-      damping: 14,
-      stiffness: 280,
+    scale.value = withSpring(isActive ? 1.08 : 1, {
+      damping: 15,
+      stiffness: 300,
     });
   }, [isActive, scale]);
 
@@ -78,36 +114,50 @@ const TabButton: React.FC<{
     onPress();
   };
 
+  if (isCenter) {
+    return (
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={handlePress}
+        style={styles.centerTabButton}
+      >
+        <Animated.View style={[styles.centerIconWrapper, animatedStyle]}>
+          <Wallet size={22} color="#1E293B" strokeWidth={2.2} />
+        </Animated.View>
+        <Text
+          style={[
+            styles.centerTabLabel,
+            { color: isActive ? Colors.primary : Colors.textSecondary },
+          ]}
+          numberOfLines={1}
+        >
+          {item.label}
+        </Text>
+      </TouchableOpacity>
+    );
+  }
+
   return (
     <TouchableOpacity
       activeOpacity={0.7}
       onPress={handlePress}
       style={styles.tabButton}
     >
-      <Animated.View
-        style={[
-          styles.iconWrapper,
-          isCenter && styles.centerIconWrapper,
-          isCenter && isActive && styles.centerIconWrapperActive,
-          animatedStyle,
-        ]}
-      >
+      <Animated.View style={[styles.iconWrapper, animatedStyle]}>
         <IconComp
-          size={isCenter ? 24 : 22}
-          color={
-            isCenter
-              ? '#FFFFFF'
-              : isActive
-              ? Colors.primary
-              : Colors.textMuted
-          }
-          strokeWidth={isCenter ? 2.6 : isActive ? 2.4 : 1.8}
+          size={22}
+          color={isActive ? Colors.primary : Colors.textMuted}
+          strokeWidth={isActive ? 2.4 : 1.8}
         />
-        {isActive && !isCenter && (
-          <View style={styles.activeDotContainer}>
-            <View style={styles.activeDot} />
-          </View>
-        )}
+        <Text
+          style={[
+            styles.tabLabel,
+            { color: isActive ? Colors.primary : Colors.textMuted },
+          ]}
+          numberOfLines={1}
+        >
+          {item.label}
+        </Text>
       </Animated.View>
     </TouchableOpacity>
   );
@@ -118,15 +168,18 @@ export const CustomBottomNav: React.FC<CustomBottomNavProps> = ({
   onSelectTab,
 }) => {
   const insets = useSafeAreaInsets();
-  const bottomOffset = Math.max(insets.bottom > 0 ? insets.bottom + 8 : 16, 16);
+  const bottomOffset = getNavBottomOffset(insets.bottom);
 
   return (
-    <View style={[styles.container, { bottom: bottomOffset }]}>
+    <View
+      pointerEvents="box-none"
+      style={[styles.container, { bottom: bottomOffset }]}
+    >
       <View style={styles.navBar}>
         {Platform.OS === 'ios' && (
           <BlurView
-            intensity={45}
-            tint="dark"
+            intensity={60}
+            tint="light"
             style={StyleSheet.absoluteFill}
           />
         )}
@@ -148,82 +201,82 @@ export const CustomBottomNav: React.FC<CustomBottomNavProps> = ({
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    left: Spacing.md,
-    right: Spacing.md,
+    left: 12,
+    right: 12,
     alignItems: 'center',
     zIndex: 999,
   },
   navBar: {
     width: '100%',
     maxWidth: 440,
-    height: 64,
+    height: 70,
     borderRadius: BorderRadius.full,
     backgroundColor:
       Platform.OS === 'ios'
-        ? 'rgba(17, 16, 25, 0.78)'
-        : 'rgba(17, 16, 25, 0.94)',
+        ? 'rgba(255, 255, 255, 0.95)'
+        : '#FFFFFF',
     borderWidth: 1,
-    borderColor: Colors.border,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.45,
+    borderColor: '#E2E8F0',
+    overflow: 'visible',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
     shadowRadius: 16,
-    elevation: 8,
+    elevation: 6,
   },
   itemsContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    paddingHorizontal: Spacing.xs,
+    paddingHorizontal: 4,
   },
   tabButton: {
     flex: 1,
     height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  centerTabButton: {
+    width: 68,
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -10,
   },
   iconWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
-    height: 38,
+    paddingVertical: 2,
   },
-  activeDotContainer: {
-    position: 'absolute',
-    bottom: -2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  activeDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.primary,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 4,
+  tabLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    marginTop: 3,
+    letterSpacing: -0.1,
+    textAlign: 'center',
   },
   centerIconWrapper: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#1E1B2C',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.16)',
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#F59E0B',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
     shadowRadius: 6,
-    elevation: 4,
+    elevation: 5,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
   },
-  centerIconWrapperActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-    shadowOpacity: 0.6,
-    shadowRadius: 8,
+  centerTabLabel: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    marginTop: 2,
+    letterSpacing: -0.2,
+    textAlign: 'center',
   },
 });

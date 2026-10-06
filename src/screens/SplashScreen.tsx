@@ -4,13 +4,11 @@ import {
   Text,
   StyleSheet,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { LinearGradient } from 'expo-linear-gradient';
-import { ShieldCheck, Sparkles } from 'lucide-react-native';
 import { Colors } from '../theme/colors';
-import { Typography } from '../theme/typography';
 import { Spacing } from '../theme/spacing';
 
 interface SplashScreenProps {
@@ -28,30 +26,19 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
 
       {/* Ambient background glow */}
       <View style={styles.ambientGlow} />
 
       <View style={styles.content}>
-        {/* Emblem Logo */}
-        <View style={styles.logoOuter}>
-          <LinearGradient
-            colors={Colors.accentGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.logoGradient}
-          >
-            <ShieldCheck size={48} color="#FFFFFF" strokeWidth={2.2} />
-          </LinearGradient>
-        </View>
-
-        {/* Brand Name */}
-        <View style={styles.brandRow}>
-          <Text style={styles.brandName}>DreamPay</Text>
-          <View style={styles.sparkleWrap}>
-            <Sparkles size={16} color={Colors.primary} />
-          </View>
+        {/* Brand Logo */}
+        <View style={styles.logoCard}>
+          <Image
+            source={require('../../assets/logo.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
         </View>
 
         <Text style={styles.brandTagline}>
@@ -86,8 +73,7 @@ const styles = StyleSheet.create({
     width: 260,
     height: 260,
     borderRadius: 130,
-    backgroundColor: 'rgba(124, 92, 252, 0.15)',
-    filter: 'blur(50px)',
+    backgroundColor: 'rgba(0, 168, 107, 0.08)',
   },
   content: {
     flex: 1,
@@ -95,42 +81,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: Spacing.xl,
   },
-  logoOuter: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    padding: 3,
-    backgroundColor: 'rgba(124, 92, 252, 0.25)',
-    borderWidth: 1,
-    borderColor: Colors.borderAccent,
-    marginBottom: Spacing.lg,
+  logoCard: {
+    width: 180,
+    height: 180,
+    borderRadius: 32,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    marginBottom: Spacing.md,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
+    shadowOpacity: 0.25,
     shadowRadius: 20,
-    elevation: 10,
+    elevation: 8,
   },
-  logoGradient: {
-    flex: 1,
-    borderRadius: 45,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  brandName: {
-    color: '#FFFFFF',
-    fontSize: 38,
-    fontWeight: '900',
-    letterSpacing: -1,
-    fontFamily: Typography.h1.fontFamily,
-  },
-  sparkleWrap: {
-    marginLeft: 6,
-    marginTop: -8,
+  logoImage: {
+    width: '100%',
+    height: '100%',
   },
   brandTagline: {
     color: Colors.textSecondary,

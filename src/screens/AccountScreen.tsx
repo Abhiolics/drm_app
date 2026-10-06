@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -22,7 +22,6 @@ import {
   X,
   CreditCard,
   ArrowUpRight,
-  ShieldCheck,
   AlertCircle,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -248,7 +247,7 @@ export const AccountScreen: React.FC<AccountScreenProps> = ({ onBack }) => {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
 
       {/* Screen Header */}
       <View style={styles.header}>
@@ -265,7 +264,7 @@ export const AccountScreen: React.FC<AccountScreenProps> = ({ onBack }) => {
           style={styles.backCircleBtn}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <ArrowLeft size={20} color="#FFFFFF" strokeWidth={2.4} />
+          <ArrowLeft size={20} color={Colors.textPrimary} strokeWidth={2.4} />
         </TouchableOpacity>
 
         <Text style={styles.headerTitle}>Account Settings</Text>
@@ -583,7 +582,7 @@ export const AccountScreen: React.FC<AccountScreenProps> = ({ onBack }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#09080D',
+    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -597,16 +596,21 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#161622',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderColor: '#E2E8F0',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: Colors.textPrimary,
     textAlign: 'center',
   },
   headerPlaceholder: {
@@ -619,26 +623,31 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   balanceSnapshotCard: {
-    backgroundColor: '#151722',
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: '#E2E8F0',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   balanceSnapshotLabel: {
-    color: '#8E92A4',
+    color: Colors.textMuted,
     fontSize: 12,
     fontWeight: '500',
   },
   balanceSnapshotAmount: {
-    color: '#FFFFFF',
-    fontSize: 22,
+    color: Colors.textPrimary,
+    fontSize: 24,
     fontWeight: '800',
     marginTop: 4,
   },
   sectionHeaderTitle: {
-    color: '#8E92A4',
+    color: Colors.textSecondary,
     fontSize: 13,
     fontWeight: '600',
     textTransform: 'uppercase',
@@ -646,12 +655,17 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   accountCard: {
-    backgroundColor: '#151722',
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 20,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: '#E2E8F0',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   cardHeaderRow: {
     flexDirection: 'row',
@@ -659,7 +673,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   cardLabel: {
-    color: '#8E92A4',
+    color: Colors.textMuted,
     fontSize: 13,
     fontWeight: '500',
   },
@@ -672,13 +686,13 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   holderNameText: {
-    color: '#FFFFFF',
+    color: Colors.textPrimary,
     fontSize: 18,
     fontWeight: '700',
     marginTop: 6,
   },
   upiIdText: {
-    color: '#2ECC71',
+    color: Colors.primary,
     fontSize: 15,
     fontWeight: '600',
     marginTop: 4,
@@ -687,9 +701,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(124, 92, 252, 0.15)',
+    backgroundColor: Colors.primaryLight,
     borderWidth: 1,
-    borderColor: Colors.borderAccent,
+    borderColor: Colors.primary,
     borderRadius: 12,
     paddingVertical: 10,
     marginTop: 16,
@@ -700,31 +714,31 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   emptyCard: {
-    backgroundColor: '#151722',
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 28,
     alignItems: 'center',
     marginTop: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: '#E2E8F0',
   },
   emptyIconCircle: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: Colors.surfaceMuted,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
   },
   emptyTitle: {
-    color: '#FFFFFF',
+    color: Colors.textPrimary,
     fontSize: 18,
     fontWeight: '700',
     marginBottom: 8,
   },
   emptySubtitle: {
-    color: '#8E92A4',
+    color: Colors.textMuted,
     fontSize: 13,
     textAlign: 'center',
     lineHeight: 19,
@@ -732,20 +746,20 @@ const styles = StyleSheet.create({
   bottomContainer: {
     paddingHorizontal: 16,
     paddingTop: 10,
-    backgroundColor: '#09080D',
+    backgroundColor: Colors.background,
   },
   addAccountBtn: {
-    backgroundColor: '#E5A93C',
-    height: 54,
-    borderRadius: 27,
+    backgroundColor: Colors.primary,
+    height: 52,
+    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
-    shadowColor: '#E5A93C',
+    shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 6,
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
   addAccountBtnText: {
     color: '#FFFFFF',
@@ -754,7 +768,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
@@ -762,11 +776,16 @@ const styles = StyleSheet.create({
   modalContainer: {
     width: '100%',
     maxWidth: 420,
-    backgroundColor: '#161522',
+    backgroundColor: '#FFFFFF',
     borderRadius: 24,
     padding: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderColor: '#E2E8F0',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 6,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -775,7 +794,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   modalTitle: {
-    color: '#FFFFFF',
+    color: Colors.textPrimary,
     fontSize: 20,
     fontWeight: '700',
   },
@@ -783,12 +802,12 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: Colors.surfaceMuted,
     alignItems: 'center',
     justifyContent: 'center',
   },
   modalSubtitle: {
-    color: '#8E92A4',
+    color: Colors.textSecondary,
     fontSize: 13,
     lineHeight: 18,
     marginBottom: 20,
@@ -797,35 +816,35 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   inputLabel: {
-    color: '#8E92A4',
+    color: Colors.textSecondary,
     fontSize: 13,
     fontWeight: '600',
     marginBottom: 8,
   },
   inputBox: {
-    backgroundColor: '#1C1B2A',
+    backgroundColor: '#F8FAFC',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: '#E2E8F0',
     paddingHorizontal: 14,
     height: 50,
     justifyContent: 'center',
   },
   textInput: {
-    color: '#FFFFFF',
+    color: Colors.textPrimary,
     fontSize: 15,
     padding: 0,
   },
   errorBox: {
-    backgroundColor: 'rgba(255, 92, 112, 0.12)',
+    backgroundColor: Colors.dangerBg,
     borderRadius: 10,
     padding: 10,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 92, 112, 0.3)',
+    borderColor: 'rgba(239, 68, 68, 0.3)',
   },
   errorText: {
-    color: '#FF5C70',
+    color: Colors.danger,
     fontSize: 12,
     fontWeight: '500',
   },
@@ -839,12 +858,12 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: Colors.surfaceMuted,
     alignItems: 'center',
     justifyContent: 'center',
   },
   modalCancelText: {
-    color: '#FFFFFF',
+    color: Colors.textSecondary,
     fontSize: 15,
     fontWeight: '600',
   },
@@ -852,7 +871,7 @@ const styles = StyleSheet.create({
     flex: 1.5,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#E5A93C',
+    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },

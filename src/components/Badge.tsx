@@ -38,12 +38,12 @@ export const Badge: React.FC<BadgeProps> = ({
       case 'info':
         return { bg: Colors.infoBg, text: Colors.info, border: 'transparent' };
       case 'neutral':
-        return { bg: 'rgba(255,255,255,0.06)', text: Colors.textSecondary, border: Colors.borderSubtle };
+        return { bg: Colors.surfaceMuted, text: Colors.textSecondary, border: Colors.borderSubtle };
       case 'outline':
-        return { bg: 'transparent', text: Colors.primary, border: Colors.borderAccent };
+        return { bg: 'transparent', text: Colors.primary, border: Colors.primary };
       case 'accent':
       default:
-        return { bg: Colors.primaryLight, text: Colors.primary, border: Colors.borderAccent };
+        return { bg: Colors.primaryLight, text: Colors.primary, border: 'transparent' };
     }
   };
 

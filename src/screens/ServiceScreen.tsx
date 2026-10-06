@@ -119,7 +119,7 @@ export const ServiceScreen: React.FC<ServiceScreenProps> = ({ onBack }) => {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
 
       {/* Screen Header */}
       <Header
@@ -198,7 +198,7 @@ export const ServiceScreen: React.FC<ServiceScreenProps> = ({ onBack }) => {
                   style={styles.contactBtn}
                 >
                   <LinearGradient
-                    colors={['#5B8CFF', '#7C5CFC']}
+                    colors={Colors.accentGradient}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0.8 }}
                     style={styles.contactBtnGradient}
@@ -321,11 +321,11 @@ const styles = StyleSheet.create({
   noticeCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(124, 92, 252, 0.08)',
+    backgroundColor: Colors.primaryMuted,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(124, 92, 252, 0.25)',
+    borderColor: Colors.borderAccent,
     marginBottom: Spacing.md,
   },
   noticeIconWrap: {
@@ -367,22 +367,27 @@ const styles = StyleSheet.create({
   channelCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surfaceElevated,
+    backgroundColor: '#FFFFFF',
     borderRadius: BorderRadius.lg,
     paddingVertical: 14,
     paddingHorizontal: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.borderSubtle,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   avatarContainer: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(91, 140, 255, 0.15)',
+    backgroundColor: Colors.infoBg,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(91, 140, 255, 0.35)',
+    borderColor: 'rgba(37, 99, 235, 0.25)',
     marginRight: Spacing.md,
   },
   avatarGradient: {

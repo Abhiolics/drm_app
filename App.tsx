@@ -14,7 +14,7 @@ export default function App() {
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <View style={isWeb ? styles.webWrapper : styles.container}>
           <View style={isWeb ? styles.mobileContainer : styles.container}>
-            <StatusBar style="light" />
+            <StatusBar style="dark" />
             <AppNavigator />
           </View>
         </View>
@@ -34,7 +34,7 @@ const styles = StyleSheet.create({
   },
   webWrapper: {
     flex: 1,
-    backgroundColor: '#040306',
+    backgroundColor: '#E2E8F0',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -44,11 +44,11 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: Colors.background,
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.6,
-    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
     borderLeftWidth: 1,
     borderRightWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: '#E2E8F0',
   },
 });

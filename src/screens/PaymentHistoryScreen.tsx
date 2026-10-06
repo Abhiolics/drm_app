@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -19,7 +19,6 @@ import { walletService } from '../services/walletService';
 import { ApiTransaction, PaymentItem } from '../types';
 import { Colors } from '../theme/colors';
 import { Spacing } from '../theme/spacing';
-import { Typography } from '../theme/typography';
 
 interface PaymentHistoryScreenProps {
   onBack?: () => void;
@@ -119,7 +118,7 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
 
       <Header
         title="Payment History"

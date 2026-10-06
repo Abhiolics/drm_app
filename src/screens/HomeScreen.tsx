@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,19 +11,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import {
   Bell,
-  ChevronRight,
   Award,
-  Banknote,
   TrendingUp,
   Users,
   Receipt,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Copy,
+  Bot,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '../theme/colors';
 import { BorderRadius, Spacing } from '../theme/spacing';
 import { Typography } from '../theme/typography';
-import { GlassCard } from '../components/GlassCard';
 import { TransactionItem } from '../components/TransactionItem';
 import { PaymentDetailModal } from '../components/PaymentDetailModal';
 import { NotificationModal } from '../components/NotificationModal';
@@ -40,6 +41,7 @@ interface HomeScreenProps {
   onNavigateToTasks?: () => void;
   onNavigateToAssets?: () => void;
   onNavigateToTeams?: () => void;
+  onNavigateToPlans?: () => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -48,6 +50,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigateToTasks,
   onNavigateToAssets,
   onNavigateToTeams,
+  onNavigateToPlans,
 }) => {
   const { user, wallet, unreadNotifications, refreshUser } = useAuth();
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
@@ -213,8 +216,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   const quickActions = [
     { id: 'tasks', label: 'Tasks', icon: Award, action: onNavigateToTasks },
-    { id: 'money', label: 'Money', icon: Banknote, action: onNavigateToPayments },
-    { id: 'plan', label: 'Plan', icon: TrendingUp, action: onNavigateToStats },
+    { id: 'orders', label: 'Orders', icon: Receipt, action: onNavigateToPayments },
+    { id: 'plan', label: 'Payments', icon: TrendingUp, action: onNavigateToPlans || onNavigateToStats },
     { id: 'teams', label: 'Teams', icon: Users, action: onNavigateToTeams },
   ];
 
@@ -227,13 +230,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     actionFn?.();
   };
 
-  const displayName = user?.fullName || 'DreamPay User';
-  const displayId = (user?._id || user?.id || '21833').slice(-6).toUpperCase();
+  const displayName = user?.fullName || (user?.email ? user.email.split('@')[0] : 'User');
+  const displayId = (user?._id || user?.id) ? String(user?._id || user?.id).slice(-6).toUpperCase() : '------';
   const avatarLetter = (displayName || 'U').charAt(0).toUpperCase();
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
 
       {/* Top Header */}
       <View style={styles.header}>
@@ -243,17 +246,26 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           style={styles.profileRow}
         >
           <View style={styles.avatarBorder}>
-            <View style={styles.avatarInner}>
-              <Text style={styles.avatarInitial}>{avatarLetter}</Text>
-            </View>
+            <Text style={styles.avatarInitial}>{avatarLetter}</Text>
           </View>
           <View style={styles.profileInfo}>
             <Text style={[Typography.bodySemiBold, styles.username]}>
               {displayName}
             </Text>
-            <Text style={[Typography.captionSmall, styles.userId]}>
-              ID: {displayId}
-            </Text>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => {
+                try {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                } catch {
+                  // Fallback
+                }
+              }}
+              style={styles.idBadge}
+            >
+              <Text style={styles.userId}>ID: {displayId}</Text>
+              <Copy size={11} color={Colors.primary} style={{ marginLeft: 4 }} />
+            </TouchableOpacity>
           </View>
         </TouchableOpacity>
 
@@ -263,7 +275,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           style={styles.notificationBtn}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Bell size={20} color={Colors.textPrimary} />
+          <Bell size={22} color={Colors.textPrimary} />
           {unreadNotifications > 0 && (
             <View style={styles.notificationDot} />
           )}
@@ -283,86 +295,98 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         }
         contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomNavPadding }]}
       >
-        {/* Sticky Big Balance Card Container */}
+        {/* Sticky Balance Card & Metrics Container */}
         <View style={styles.stickyCardWrapper}>
           <View style={styles.stickyInnerContainer}>
-            {/* Main Balance Card */}
-            <GlassCard elevated borderAccent style={styles.balanceCard}>
-              <Text style={[Typography.captionSmall, styles.balanceLabel]}>
-                AVAILABLE BALANCE
-              </Text>
-
-              <View style={styles.balanceRow}>
-                <Text
-                  style={[Typography.balance, styles.balanceAmount]}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.75}
-                >
-                  ₹ {wallet.balance.toLocaleString('en-IN', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                activeOpacity={0.85}
-                onPress={onNavigateToPayments}
-                style={styles.viewDetailsBtn}
+            {/* Top Available Balance Card (Green Theme with Accents) */}
+            <View style={styles.heroCard}>
+              <LinearGradient
+                colors={Colors.heroGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.heroCardGradient}
               >
-                <LinearGradient
-                  colors={Colors.accentGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.viewDetailsGradient}
+                {/* Decorative Geometric Curves Matching Screenshot */}
+                <View style={styles.decorYellowCircle} />
+                <View style={styles.decorBlueCircle} />
+                <View style={styles.decorGreenWave} />
+
+                <View style={styles.heroContent}>
+                  <View style={styles.balanceInfo}>
+                    <Text style={styles.balanceLabel}>Available Balance</Text>
+                    <Text
+                      style={styles.balanceAmount}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.75}
+                    >
+                      ₹ {wallet.balance.toLocaleString('en-IN', {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 2,
+                      })}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={onNavigateToPayments}
+                    style={styles.detailPillBtn}
+                  >
+                    <Text style={styles.detailPillText}>Detail</Text>
+                  </TouchableOpacity>
+                </View>
+              </LinearGradient>
+            </View>
+
+            {/* Deposit & Withdrawal Metrics Banner (Matching Screenshot) */}
+            <View style={styles.metricsBanner}>
+              <LinearGradient
+                colors={['#009A62', '#00875A']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.metricsBannerGradient}
+              >
+                {/* Subtle corner shapes like in screenshot */}
+                <View style={styles.metricBlueAccent} />
+                <View style={styles.metricGoldAccent} />
+
+                {/* Left: Deposit */}
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={onNavigateToPayments}
+                  style={styles.metricBannerCol}
                 >
-                  <Text style={[Typography.button, styles.viewDetailsText]}>
-                    View Details
-                  </Text>
-                  <ChevronRight size={16} color="#FFFFFF" />
-                </LinearGradient>
-              </TouchableOpacity>
-
-              {/* Deposit & Withdrawal lower box */}
-              <View style={styles.metricsBox}>
-                <View style={styles.metricItem}>
-                  <View style={styles.metricTitleRow}>
-                    <View style={[styles.statusDot, { backgroundColor: Colors.success }]} />
-                    <Text style={styles.metricItemLabel}>Deposit</Text>
+                  <View style={styles.metricBannerTitleRow}>
+                    <ArrowUpRight size={15} color="#34D399" />
+                    <Text style={styles.metricBannerLabel}>Deposit</Text>
                   </View>
-                  <Text
-                    style={[Typography.bodySemiBold, styles.metricItemValue]}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.8}
-                  >
-                    ₹ {depositSum.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  <Text style={styles.metricBannerValue}>
+                    ₹ {depositSum.toLocaleString('en-IN', { minimumFractionDigits: 0 })}
                   </Text>
-                </View>
+                </TouchableOpacity>
 
-                <View style={styles.metricDivider} />
+                <View style={styles.metricBannerDivider} />
 
-                <View style={styles.metricItem}>
-                  <View style={styles.metricTitleRow}>
-                    <View style={[styles.statusDot, { backgroundColor: Colors.danger }]} />
-                    <Text style={styles.metricItemLabel}>Withdrawal</Text>
+                {/* Right: Withdrawal */}
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={onNavigateToPayments}
+                  style={styles.metricBannerCol}
+                >
+                  <View style={styles.metricBannerTitleRow}>
+                    <ArrowDownLeft size={15} color="#F87171" />
+                    <Text style={styles.metricBannerLabel}>Withdrawal</Text>
                   </View>
-                  <Text
-                    style={[Typography.bodySemiBold, styles.metricItemValue]}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.8}
-                  >
-                    ₹ {withdrawalSum.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  <Text style={styles.metricBannerValue}>
+                    ₹ {withdrawalSum.toLocaleString('en-IN', { minimumFractionDigits: 0 })}
                   </Text>
-                </View>
-              </View>
-            </GlassCard>
+                </TouchableOpacity>
+              </LinearGradient>
+            </View>
           </View>
         </View>
 
-        {/* Scrollable Content Below Sticky Card */}
+        {/* Scrollable Content Below Sticky Cards */}
         <View style={styles.scrollableContent}>
           <View style={styles.scrollableInnerContainer}>
             {/* 4 Quick Actions (Tasks, Money, Plan, Teams) */}
@@ -377,7 +401,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     style={styles.actionItem}
                   >
                     <View style={styles.actionIconBox}>
-                      <Icon size={22} color={Colors.primary} />
+                      <Icon size={24} color={Colors.primary} strokeWidth={2} />
                     </View>
                     <Text style={[Typography.caption, styles.actionLabel]} numberOfLines={1}>
                       {action.label}
@@ -387,10 +411,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               })}
             </View>
 
-            {/* Recent Transactions Section */}
+            {/* Transactions Section Header */}
             <View style={styles.sectionHeader}>
               <Text style={[Typography.sectionTitle, styles.sectionTitleText]} numberOfLines={1}>
-                Recent Transactions
+                Transactions
               </Text>
               <TouchableOpacity
                 activeOpacity={0.7}
@@ -398,11 +422,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 style={styles.seeAllBtn}
               >
                 <Text style={styles.seeAllText}>See All</Text>
-                <ChevronRight size={14} color={Colors.primary} />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.transactionList}>
+            {/* Transactions Card Container */}
+            <View style={styles.transactionCardContainer}>
               {recentTransactions.length === 0 ? (
                 <View style={styles.emptyTxBox}>
                   <Receipt size={32} color={Colors.textMuted} style={{ marginBottom: 8 }} />
@@ -424,6 +448,27 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </View>
         </View>
       </ScrollView>
+
+      {/* Floating Robot / Support Assistant Widget */}
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={() => {
+          try {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          } catch {
+            // Fallback
+          }
+          onNavigateToTeams?.();
+        }}
+        style={[styles.floatingBotBtn, { bottom: bottomNavPadding - 10 }]}
+      >
+        <LinearGradient
+          colors={['#00C982', '#00A86B']}
+          style={styles.floatingBotGradient}
+        >
+          <Bot size={22} color="#FFFFFF" strokeWidth={2.4} />
+        </LinearGradient>
+      </TouchableOpacity>
 
       {/* Transaction Detail Modal */}
       <PaymentDetailModal
@@ -454,7 +499,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingTop: Spacing.xs,
+    paddingBottom: Spacing.sm,
     width: '100%',
     maxWidth: 600,
     alignSelf: 'center',
@@ -464,45 +510,56 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   avatarBorder: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    padding: 2,
-    backgroundColor: Colors.primaryLight,
-    borderWidth: 1,
-    borderColor: Colors.primary,
-  },
-  avatarInner: {
-    flex: 1,
-    borderRadius: 20,
-    backgroundColor: Colors.surfaceElevated,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#DBEAFE',
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarInitial: {
-    color: Colors.textPrimary,
-    fontWeight: '700',
-    fontSize: 16,
+    color: '#2563EB',
+    fontWeight: '800',
+    fontSize: 18,
   },
   profileInfo: {
-    marginLeft: Spacing.sm,
+    marginLeft: 10,
   },
   username: {
     color: Colors.textPrimary,
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  idBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E5E7EB',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+    marginTop: 2,
+    alignSelf: 'flex-start',
   },
   userId: {
-    color: Colors.textMuted,
+    color: '#4B5563',
+    fontSize: 11,
+    fontWeight: '600',
   },
   notificationBtn: {
     width: 40,
     height: 40,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.surfaceElevated,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: '#E2E8F0',
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
   },
   notificationDot: {
     position: 'absolute',
@@ -513,7 +570,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: Colors.danger,
     borderWidth: 1.5,
-    borderColor: Colors.surfaceElevated,
+    borderColor: '#FFFFFF',
   },
   scrollContent: {
     flexGrow: 1,
@@ -522,7 +579,7 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: Colors.background,
     zIndex: 10,
-    paddingTop: Spacing.xs,
+    paddingTop: 2,
     paddingBottom: Spacing.sm,
   },
   stickyInnerContainer: {
@@ -530,86 +587,156 @@ const styles = StyleSheet.create({
     maxWidth: 600,
     alignSelf: 'center',
     paddingHorizontal: Spacing.md,
+    gap: 10,
   },
-  balanceCard: {
-    padding: Spacing.lg,
-    width: '100%',
-  },
-  balanceLabel: {
-    color: Colors.textMuted,
-    letterSpacing: 1.2,
-    fontWeight: '700',
-    marginBottom: Spacing.xs,
-  },
-  balanceRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginBottom: Spacing.md,
-  },
-  balanceAmount: {
-    color: Colors.textPrimary,
-    fontWeight: '800',
-  },
-  viewDetailsBtn: {
-    borderRadius: BorderRadius.full,
+  heroCard: {
+    borderRadius: 20,
     overflow: 'hidden',
-    marginBottom: Spacing.md,
     shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
     elevation: 4,
   },
-  viewDetailsGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  heroCardGradient: {
+    padding: Spacing.lg,
+    position: 'relative',
+    overflow: 'hidden',
+    minHeight: 140,
     justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: Spacing.md,
   },
-  viewDetailsText: {
-    color: '#FFFFFF',
-    marginRight: 6,
-    fontWeight: '700',
+  decorYellowCircle: {
+    position: 'absolute',
+    top: -24,
+    right: 32,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: '#FBBF24',
+    opacity: 0.85,
   },
-  metricsBox: {
+  decorBlueCircle: {
+    position: 'absolute',
+    top: 20,
+    right: -25,
+    width: 105,
+    height: 105,
+    borderRadius: 55,
+    backgroundColor: '#3B82F6',
+    opacity: 0.75,
+  },
+  decorGreenWave: {
+    position: 'absolute',
+    bottom: -20,
+    left: -20,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#10B981',
+    opacity: 0.4,
+  },
+  heroContent: {
     flexDirection: 'row',
-    backgroundColor: Colors.surfaceElevated,
-    borderRadius: BorderRadius.md,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.borderSubtle,
     alignItems: 'center',
+    justifyContent: 'space-between',
+    zIndex: 2,
   },
-  metricItem: {
+  balanceInfo: {
+    flex: 1,
+    paddingRight: Spacing.sm,
+  },
+  balanceLabel: {
+    color: 'rgba(255, 255, 255, 0.95)',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  balanceAmount: {
+    color: '#FFFFFF',
+    fontSize: 34,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  detailPillBtn: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 22,
+    paddingVertical: 10,
+    borderRadius: BorderRadius.full,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  detailPillText: {
+    color: '#111827',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  metricsBanner: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  metricsBannerGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: Spacing.md,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  metricBlueAccent: {
+    position: 'absolute',
+    left: -15,
+    top: -10,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#3B82F6',
+    opacity: 0.8,
+  },
+  metricGoldAccent: {
+    position: 'absolute',
+    right: -15,
+    bottom: -15,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#FBBF24',
+    opacity: 0.8,
+  },
+  metricBannerCol: {
     flex: 1,
     alignItems: 'center',
+    zIndex: 2,
   },
-  metricTitleRow: {
+  metricBannerTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 2,
+    gap: 4,
+    marginBottom: 4,
   },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 6,
+  metricBannerLabel: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
   },
-  metricItemLabel: {
-    ...Typography.captionSmall,
-    color: Colors.textMuted,
+  metricBannerValue: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '800',
   },
-  metricItemValue: {
-    color: Colors.textPrimary,
-    fontWeight: '700',
-  },
-  metricDivider: {
+  metricBannerDivider: {
     width: 1,
-    height: 24,
-    backgroundColor: Colors.border,
+    height: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.28)',
     marginHorizontal: Spacing.xs,
+    zIndex: 2,
   },
   scrollableContent: {
     width: '100%',
@@ -624,57 +751,69 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginVertical: Spacing.md,
+    gap: 10,
   },
   actionItem: {
     flex: 1,
     alignItems: 'center',
   },
   actionIconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: BorderRadius.lg,
-    backgroundColor: Colors.surfaceElevated,
+    width: 58,
+    height: 58,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: '#E2E8F0',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.xs,
+    marginBottom: 6,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
   },
   actionLabel: {
-    color: Colors.textSecondary,
+    color: Colors.textPrimary,
     fontWeight: '600',
+    fontSize: 13,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.xs,
+    marginTop: Spacing.xs,
   },
   sectionTitleText: {
     color: Colors.textPrimary,
+    fontSize: 18,
+    fontWeight: '700',
   },
   seeAllBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingVertical: 4,
   },
   seeAllText: {
-    ...Typography.caption,
-    color: Colors.primary,
-    marginRight: 2,
+    color: Colors.secondary,
     fontWeight: '600',
+    fontSize: 13,
   },
-  transactionList: {
-    gap: 8,
+  transactionCardContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: Spacing.sm,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+    marginVertical: 4,
   },
   emptyTxBox: {
     padding: Spacing.xl,
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.borderSubtle,
-    marginVertical: Spacing.md,
   },
   emptyTxText: {
     color: Colors.textPrimary,
@@ -686,5 +825,27 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     marginTop: 4,
+  },
+  floatingBotBtn: {
+    position: 'absolute',
+    right: 18,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    zIndex: 998,
+    shadowColor: '#00A86B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  floatingBotGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
 });

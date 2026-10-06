@@ -18,7 +18,7 @@ export const GlassCard: React.FC<GlassCardProps> = ({
   children,
   style,
   intensity = 30,
-  tint = 'dark',
+  tint = 'light',
   elevated = false,
   borderAccent = false,
   padding = Spacing.md,
@@ -43,16 +43,14 @@ export const GlassCard: React.FC<GlassCardProps> = ({
     );
   }
 
-  // Graceful android / web rendering with exact translucent surface
+  // Graceful android / web rendering with exact clean surface
   return (
     <View
       style={[
         styles.outer,
         containerStyle,
         {
-          backgroundColor: elevated
-            ? 'rgba(23, 21, 33, 0.92)'
-            : 'rgba(17, 16, 25, 0.88)',
+          backgroundColor: elevated ? Colors.surfaceElevated : Colors.surface,
         },
         style,
       ]}
@@ -66,11 +64,11 @@ const styles = StyleSheet.create({
   outer: {
     borderWidth: 1,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 3,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   content: {
     position: 'relative',

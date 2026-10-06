@@ -1,6 +1,10 @@
-import apiClient from './apiClient';
+import apiClient, { API_URL } from './apiClient';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ApiTask } from '../types';
+
+import * as FileSystem from 'expo-file-system/legacy';
+import { prepareImageForUpload } from '../utils/imageUploadHelper';
 
 export interface TaskSubmissionRecord {
   _id: string;
@@ -34,24 +38,111 @@ export const taskService = {
     taskId: string,
     imageUri: string
   ): Promise<{ success: boolean; message: string; data?: any }> => {
-    const formData = new FormData();
-    const filename = imageUri.split('/').pop() || `task_proof_${Date.now()}.jpg`;
-    const match = /\.(\w+)$/.exec(filename);
-    const type = match ? `image/${match[1].toLowerCase()}` : 'image/jpeg';
+    const token = await AsyncStorage.getItem('user_token');
 
-    formData.append('proof', {
-      uri: Platform.OS === 'ios' ? imageUri.replace('file://', '') : imageUri,
-      name: filename,
-      type,
-    } as any);
+    if (Platform.OS === 'web') {
+      try {
+        const formData = new FormData();
+        const response = await fetch(imageUri);
+        const blob = await response.blob();
+        const file = new File([blob], `task_proof_${Date.now()}.jpg`, { type: 'image/jpeg' });
+        formData.append('proof', file);
 
-    const res = await apiClient.post(`/tasks/${taskId}/submit`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+        const res = await fetch(`${API_URL}/tasks/${taskId}/submit`, {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: formData,
+        });
 
-    return res.data;
+        const text = await res.text();
+        try {
+          return JSON.parse(text);
+        } catch {
+          return {
+            success: res.ok,
+            message: res.ok ? 'Task proof submitted successfully' : `Server error (${res.status})`,
+          };
+        }
+      } catch (err: any) {
+        return {
+          success: false,
+          message: err?.message || 'Error submitting task proof',
+        };
+      }
+    }
+
+    let prepared: { uri: string; mimeType: string; cleanup?: () => Promise<void> } | null = null;
+    try {
+      prepared = await prepareImageForUpload(imageUri, 'task_proof');
+
+      const uploadResult = await FileSystem.uploadAsync(`${API_URL}/tasks/${taskId}/submit`, prepared.uri, {
+        fieldName: 'proof',
+        httpMethod: 'POST',
+        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+        mimeType: prepared.mimeType,
+        headers: {
+          Accept: 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      let parsedData: any = null;
+      try {
+        if (uploadResult.body && typeof uploadResult.body === 'string') {
+          parsedData = JSON.parse(uploadResult.body);
+        }
+      } catch {
+        // Body was HTML or non-JSON
+      }
+
+      if (uploadResult.status >= 200 && uploadResult.status < 300) {
+        if (parsedData) return parsedData;
+        return {
+          success: true,
+          message: 'Task proof submitted successfully',
+        };
+      }
+
+      if (uploadResult.status === 413) {
+        return {
+          success: false,
+          message: 'Screenshot file is too large for the server. Please select a smaller image.',
+        };
+      }
+
+      if (uploadResult.status === 401) {
+        return {
+          success: false,
+          message: 'Session expired. Please log in again.',
+        };
+      }
+
+      if (parsedData?.message) {
+        return {
+          success: false,
+          message: parsedData.message,
+          data: parsedData.data,
+        };
+      }
+
+      return {
+        success: false,
+        message: `Task submission failed (Server status: ${uploadResult.status}). Please try again.`,
+      };
+    } catch (err: any) {
+      console.error('[Task] Upload error:', err);
+      return {
+        success: false,
+        message: err?.message || 'Error submitting task proof. Please check your network connection.',
+      };
+    } finally {
+      if (prepared?.cleanup) {
+        prepared.cleanup().catch(() => {});
+      }
+    }
   },
 
   // Get User's Task Submission History

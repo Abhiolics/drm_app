@@ -33,18 +33,24 @@ export const PaymentDetailScreen: React.FC<PaymentDetailScreenProps> = ({
   onBack,
   paymentItem,
 }) => {
-  const item: PaymentItem = paymentItem || {
-    id: 'pay-sample',
-    orderCode: '76XQ18',
-    amount: 2000,
-    currency: '₹',
-    date: '2026-09-30 11:05:07',
-    status: 'Completed',
-    type: 'receive',
-    method: 'IMPS UPI Direct Payout',
-    fee: 0,
-    terminalId: 'TRM-8891-DEL',
-  };
+  if (!paymentItem) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
+        <StatusBar style="dark" />
+        <Header
+          title="Payment Receipt"
+          showBack={!!onBack}
+          onBack={onBack}
+          centerTitle
+        />
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>No transaction details available.</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const item: PaymentItem = paymentItem;
 
   const handleCopyCode = () => {
     try {
@@ -56,7 +62,7 @@ export const PaymentDetailScreen: React.FC<PaymentDetailScreenProps> = ({
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
 
       <Header
         title="Payment Receipt"
@@ -306,7 +312,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(124, 92, 252, 0.08)',
+    backgroundColor: Colors.primaryMuted,
     borderRadius: BorderRadius.sm,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
@@ -326,5 +332,16 @@ const styles = StyleSheet.create({
   },
   actionCol: {
     flex: 1,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.xl,
+  },
+  emptyText: {
+    fontSize: 15,
+    color: Colors.textSecondary,
+    fontWeight: '500',
   },
 });

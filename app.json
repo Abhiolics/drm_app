@@ -13,13 +13,15 @@
     "android": {
       "package": "com.abhiolics.dreampay",
       "adaptiveIcon": {
-        "backgroundColor": "#09080D",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundImage": "./assets/android-icon-background.png"
       },
       "predictiveBackGestureEnabled": false
     },
+    "plugins": [
+      "./splitApkPlugin"
+    ],
     "web": {
       "favicon": "./assets/favicon.png"
     },
