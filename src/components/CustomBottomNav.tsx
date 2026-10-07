@@ -81,7 +81,7 @@ const NAV_ITEMS: NavItemConfig[] = [
   { id: 'Home', label: 'Home', icon: Home },
   { id: 'Plan', label: 'Payments', icon: CreditCard },
   { id: 'Account', label: 'Add account', icon: Wallet },
-  { id: 'Stats', label: 'Stats', icon: Users2 },
+  { id: 'Stats', label: 'Refer & Earn', icon: Users2 },
   { id: 'Assets', label: 'My Assets', icon: User },
 ];
 

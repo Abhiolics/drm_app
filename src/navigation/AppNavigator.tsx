@@ -9,7 +9,6 @@ import { PaymentDetailScreen } from '../screens/PaymentDetailScreen';
 import { TaskRewardsScreen } from '../screens/TaskRewardsScreen';
 import { TaskDetailScreen } from '../screens/TaskDetailScreen';
 import { AssetsScreen } from '../screens/AssetsScreen';
-import { TeamsScreen } from '../screens/TeamsScreen';
 import { ServiceScreen } from '../screens/ServiceScreen';
 import { DepositScreen } from '../screens/DepositScreen';
 import { AccountScreen } from '../screens/AccountScreen';
@@ -17,7 +16,7 @@ import { GiftRewardScreen } from '../screens/GiftRewardScreen';
 import { SplashScreen } from '../screens/SplashScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { PlansScreen } from '../screens/PlansScreen';
-import { StatsScreen } from '../screens/StatsScreen';
+import { ReferralScreen } from '../screens/ReferralScreen';
 import { WithdrawalScreen } from '../screens/WithdrawalScreen';
 import { PaymentItem, TaskItem, OfferItem } from '../types';
 
@@ -71,6 +70,7 @@ function MainTabsScreen({
             onNavigateToAssets={() => onSelectTab('Assets')}
             onNavigateToTeams={onNavigateToTeams}
             onNavigateToPlans={() => onSelectTab('Plan')}
+            onNavigateToWithdraw={onNavigateToWithdraw}
           />
         );
       case 'Plan':
@@ -99,13 +99,13 @@ function MainTabsScreen({
         return (
           <AccountScreen
             onBack={() => onSelectTab('Home')}
+            onNavigateToWithdraw={onNavigateToWithdraw}
           />
         );
       case 'Stats':
         return (
-          <StatsScreen
+          <ReferralScreen
             onBack={() => onSelectTab('Home')}
-            onNavigateToDeposit={onNavigateToDeposit}
             showBack={false}
           />
         );
@@ -118,7 +118,9 @@ function MainTabsScreen({
             onNavigateToGiftReward={onNavigateToGiftReward}
             onNavigateToDeposit={() => onNavigateToDeposit()}
             onNavigateToWithdraw={onNavigateToWithdraw}
+            onNavigateToAccount={onNavigateToAccount}
             onNavigateToHistory={() => onSelectTab('Payments')}
+            onNavigateToReferral={onNavigateToTeams}
             onLogout={onLogout}
             showBack={false}
           />
@@ -247,8 +249,9 @@ const AppNavigatorInner: React.FC = () => {
         )}
 
         {currentStackRoute === 'Teams' && (
-          <TeamsScreen
+          <ReferralScreen
             onBack={() => setCurrentStackRoute('Tabs')}
+            showBack={true}
           />
         )}
 
@@ -268,6 +271,7 @@ const AppNavigatorInner: React.FC = () => {
         {currentStackRoute === 'Account' && (
           <AccountScreen
             onBack={() => setCurrentStackRoute('Tabs')}
+            onNavigateToWithdraw={() => setCurrentStackRoute('Withdrawal')}
           />
         )}
 
@@ -280,6 +284,11 @@ const AppNavigatorInner: React.FC = () => {
         {currentStackRoute === 'Withdrawal' && (
           <WithdrawalScreen
             onBack={() => setCurrentStackRoute('Tabs')}
+            onNavigateToAddAccount={() => setCurrentStackRoute('Account')}
+            onNavigateToHistory={() => {
+              setCurrentTab('Payments');
+              setCurrentStackRoute('Tabs');
+            }}
           />
         )}
       </View>

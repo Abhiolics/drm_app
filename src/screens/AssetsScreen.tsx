@@ -23,6 +23,7 @@ import {
   LogOut,
   AlertTriangle,
   Gift,
+  CreditCard,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { Header } from '../components/Header';
@@ -43,11 +44,19 @@ interface AssetsScreenProps {
   onNavigateToGiftReward?: () => void;
   onNavigateToDeposit?: () => void;
   onNavigateToWithdraw?: () => void;
+  onNavigateToAccount?: () => void;
   onNavigateToHistory?: () => void;
+  onNavigateToReferral?: () => void;
   onLogout?: () => void;
 }
 
 const assetMenuGrid = [
+  {
+    id: 'referral',
+    title: 'Refer & Earn',
+    subtitle: '2-Level Rebate',
+    icon: 'Gift',
+  },
   {
     id: 'giftcode',
     title: 'Gift Codes',
@@ -80,9 +89,9 @@ const assetMenuGrid = [
   },
   {
     id: 'account',
-    title: 'Settings',
-    subtitle: 'System Profile',
-    icon: 'Sliders',
+    title: 'UPI Accounts',
+    subtitle: 'Manage Bank Details',
+    icon: 'CreditCard',
   },
 ];
 
@@ -94,7 +103,9 @@ export const AssetsScreen: React.FC<AssetsScreenProps> = ({
   onNavigateToGiftReward,
   onNavigateToDeposit,
   onNavigateToWithdraw,
+  onNavigateToAccount,
   onNavigateToHistory,
+  onNavigateToReferral,
   onLogout,
 }) => {
   const { user, wallet, refreshUser, logout } = useAuth();
@@ -171,6 +182,8 @@ export const AssetsScreen: React.FC<AssetsScreenProps> = ({
         return ArrowUpFromLine;
       case 'ShieldCheck':
         return ShieldCheck;
+      case 'CreditCard':
+        return CreditCard;
       case 'Sliders':
       default:
         return Sliders;
@@ -184,7 +197,11 @@ export const AssetsScreen: React.FC<AssetsScreenProps> = ({
       // Fallback
     }
 
-    if (item.id === 'service') {
+    if (item.id === 'referral') {
+      onNavigateToReferral?.();
+    } else if (item.id === 'account') {
+      onNavigateToAccount?.();
+    } else if (item.id === 'service') {
       onNavigateToService?.();
     } else if (item.id === 'giftcode') {
       onNavigateToGiftReward?.();

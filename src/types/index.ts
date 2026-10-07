@@ -23,7 +23,7 @@ export interface PaymentItem {
   amount: number;
   currency: string;
   date: string;
-  status: 'New' | 'Completed' | 'Processing';
+  status: 'New' | 'Completed' | 'Processing' | 'Pending' | 'Failed';
   type: 'receive' | 'purchase';
   method: string;
   fee: number;
@@ -115,9 +115,19 @@ export interface ServiceChannel {
   type: 'channel' | 'support';
 }
 
+export interface ApiUpiAccount {
+  _id: string;
+  upiId: string;
+  accountHolderName: string;
+  isPrimary?: boolean;
+  createdAt?: string;
+}
+
 export interface UpiAccount {
   id: string;
+  _id?: string;
   holderName: string;
+  accountHolderName?: string;
   upiId: string;
   isPrimary?: boolean;
 }
@@ -177,6 +187,7 @@ export interface ApiTransaction {
   category: 'deposit' | 'withdrawal' | 'task_reward' | 'gift_code' | 'admin_adjustment' | string;
   status: 'completed' | 'pending' | 'failed' | string;
   description: string;
+  referenceId?: string;
   createdAt: string;
 }
 
@@ -208,6 +219,10 @@ export interface ApiUser {
     balance: number;
     pendingBalance: number;
   };
+  referralCode?: string;
+  referralLink?: string;
+  referredBy?: string | any;
+  referredByL2?: string | any;
   createdAt?: string;
 }
 
@@ -217,4 +232,29 @@ export interface ApiContact {
   label: string;
   value: string;
   isActive: boolean;
+}
+
+export interface ApiTeamMember {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  level: number;
+  totalDeposit: number;
+  registrationDate: string;
+}
+
+export interface ApiReferralStats {
+  referralCode: string;
+  referralLink: string;
+  totalCommission: number;
+  todayCommission: number;
+  yesterdayCommission: number;
+  totalMembers: number;
+  level1Count: number;
+  level2Count: number;
+  totalTeamDeposit: number;
+  level1TeamDeposit: number;
+  level2TeamDeposit: number;
+  teamMembers: ApiTeamMember[];
 }

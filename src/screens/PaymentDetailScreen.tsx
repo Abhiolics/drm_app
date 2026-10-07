@@ -14,6 +14,8 @@ import {
   Download,
   Share2,
   ShieldCheck,
+  Clock,
+  AlertCircle,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { Header } from '../components/Header';
@@ -51,6 +53,9 @@ export const PaymentDetailScreen: React.FC<PaymentDetailScreenProps> = ({
   }
 
   const item: PaymentItem = paymentItem;
+  const isPending = item.status === 'Pending' || item.status === 'Processing';
+  const isFailed = item.status === 'Failed';
+  const displayStatus = isPending ? 'Pending' : isFailed ? 'Failed' : 'Completed';
 
   const handleCopyCode = () => {
     try {
@@ -77,8 +82,23 @@ export const PaymentDetailScreen: React.FC<PaymentDetailScreenProps> = ({
       >
         {/* Top Hero Amount Card */}
         <View style={styles.heroCard}>
-          <View style={styles.statusCircle}>
-            <CheckCircle2 size={38} color={Colors.success} />
+          <View
+            style={[
+              styles.statusCircle,
+              isPending
+                ? { backgroundColor: '#FEF3C7' }
+                : isFailed
+                ? { backgroundColor: Colors.dangerBg }
+                : { backgroundColor: Colors.successBg },
+            ]}
+          >
+            {isPending ? (
+              <Clock size={38} color="#D97706" />
+            ) : isFailed ? (
+              <AlertCircle size={38} color={Colors.danger} />
+            ) : (
+              <CheckCircle2 size={38} color={Colors.success} />
+            )}
           </View>
           <Text
             style={[Typography.balance, styles.amountText]}
@@ -89,11 +109,15 @@ export const PaymentDetailScreen: React.FC<PaymentDetailScreenProps> = ({
             {item.currency} {item.amount.toLocaleString('en-IN')}.00
           </Text>
           <Text style={[Typography.bodyMedium, styles.subtitle]}>
-            Payment Received & Settled
+            {isPending
+              ? 'Awaiting Admin Verification'
+              : isFailed
+              ? 'Payment Failed or Cancelled'
+              : 'Payment Received & Settled'}
           </Text>
           <Badge
-            label={item.status}
-            variant={item.status === 'Completed' ? 'success' : 'danger'}
+            label={displayStatus}
+            variant={isPending ? 'warning' : isFailed ? 'danger' : 'success'}
             size="md"
             style={styles.badge}
           />

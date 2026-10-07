@@ -12,11 +12,11 @@ import {
   X,
   Bell,
   CheckCheck,
-  ShieldAlert,
   ArrowDownLeft,
   ArrowUpRight,
   Gift,
   Award,
+  Sparkles,
 } from 'lucide-react-native';
 import { Colors } from '../theme/colors';
 import { BorderRadius, Spacing } from '../theme/spacing';
@@ -74,6 +74,8 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
+      case 'referral':
+        return { icon: Gift, color: '#059669' };
       case 'deposit':
         return { icon: ArrowDownLeft, color: Colors.success };
       case 'withdrawal':
@@ -139,33 +141,45 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
               ) : (
                 notifications.map((item) => {
                   const { icon: IconComp, color } = getNotificationIcon(item.type);
+                  const isReferral = item.type === 'referral';
                   return (
                     <View
                       key={item._id}
                       style={[
                         styles.item,
                         !item.isRead && styles.unreadItem,
+                        isReferral && styles.referralCelebratoryItem,
                       ]}
                     >
                       <View
                         style={[
                           styles.iconCircle,
                           { backgroundColor: `${color}20` },
+                          isReferral && styles.referralIconCircle,
                         ]}
                       >
                         <IconComp size={16} color={color} />
                       </View>
                       <View style={styles.itemContent}>
                         <View style={styles.itemHeader}>
-                          <Text
-                            style={[
-                              Typography.bodySemiBold,
-                              styles.itemTitle,
-                              !item.isRead && { color: Colors.textPrimary },
-                            ]}
-                          >
-                            {item.title}
-                          </Text>
+                          <View style={styles.titleWithBadge}>
+                            <Text
+                              style={[
+                                Typography.bodySemiBold,
+                                styles.itemTitle,
+                                isReferral && { color: '#047857' },
+                                !item.isRead && { color: Colors.textPrimary },
+                              ]}
+                            >
+                              {item.title}
+                            </Text>
+                            {isReferral && (
+                              <View style={styles.referralCelebratoryPill}>
+                                <Sparkles size={9} color="#059669" />
+                                <Text style={styles.referralCelebratoryPillText}>Bonus</Text>
+                              </View>
+                            )}
+                          </View>
                           <Text style={styles.itemTime}>
                             {formatNotificationTime(item.createdAt)}
                           </Text>
@@ -323,5 +337,34 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontWeight: '600',
     fontSize: 13,
+  },
+  referralCelebratoryItem: {
+    borderColor: '#A7F3D0',
+    backgroundColor: '#F0FDF4',
+  },
+  referralIconCircle: {
+    backgroundColor: '#D1FAE5',
+    borderWidth: 1,
+    borderColor: '#6EE7B7',
+  },
+  titleWithBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  referralCelebratoryPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: BorderRadius.full,
+  },
+  referralCelebratoryPillText: {
+    color: '#059669',
+    fontSize: 9,
+    fontWeight: '700',
   },
 });

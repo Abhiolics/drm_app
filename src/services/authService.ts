@@ -30,14 +30,25 @@ export const authService = {
     fullName: string,
     phoneNumber: string,
     email: string,
-    password: string
+    password: string,
+    referralCode?: string
   ): Promise<AuthResponse> => {
-    const res = await apiClient.post<AuthResponse>('/auth/register', {
+    const payload: {
+      fullName: string;
+      phoneNumber: string;
+      email: string;
+      password: string;
+      referralCode?: string;
+    } = {
       fullName: fullName.trim(),
       phoneNumber: phoneNumber.trim(),
       email: email.trim().toLowerCase(),
       password,
-    });
+    };
+    if (referralCode && referralCode.trim()) {
+      payload.referralCode = referralCode.trim().toUpperCase();
+    }
+    const res = await apiClient.post<AuthResponse>('/auth/register', payload);
     if (res.data.success && res.data.token) {
       await AsyncStorage.setItem('user_token', res.data.token);
       if (res.data.data) {

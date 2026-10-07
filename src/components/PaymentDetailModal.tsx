@@ -8,7 +8,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CheckCircle2, X, Download, Share2, Copy } from 'lucide-react-native';
+import { CheckCircle2, X, Download, Share2, Copy, Clock, AlertCircle } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { PaymentItem, Transaction } from '../types';
 import { Colors } from '../theme/colors';
@@ -37,7 +37,10 @@ export const PaymentDetailModal: React.FC<PaymentDetailModalProps> = ({
     : data.formattedAmount;
   const orderCode = data.orderCode;
   const dateStr = data.date;
-  const status = data.status;
+  const rawStatus = data.status;
+  const isPending = rawStatus === 'Pending' || rawStatus === 'Processing';
+  const isFailed = rawStatus === 'Failed';
+  const displayStatus = isPending ? 'Pending' : isFailed ? 'Failed' : 'Completed';
   const method = isPaymentItem ? data.method : (data as Transaction).paymentMethod;
   const fee = isPaymentItem ? (data as PaymentItem).fee : (data as Transaction).fee;
 
@@ -75,15 +78,30 @@ export const PaymentDetailModal: React.FC<PaymentDetailModalProps> = ({
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
             {/* Status Hero */}
             <View style={styles.statusHero}>
-              <View style={styles.checkCircle}>
-                <CheckCircle2 size={36} color={Colors.success} />
+              <View
+                style={[
+                  styles.checkCircle,
+                  isPending
+                    ? { backgroundColor: '#FEF3C7' }
+                    : isFailed
+                    ? { backgroundColor: Colors.dangerBg }
+                    : { backgroundColor: Colors.successBg },
+                ]}
+              >
+                {isPending ? (
+                  <Clock size={36} color="#D97706" />
+                ) : isFailed ? (
+                  <AlertCircle size={36} color={Colors.danger} />
+                ) : (
+                  <CheckCircle2 size={36} color={Colors.success} />
+                )}
               </View>
               <Text style={[Typography.balance, styles.amountText]}>
                 {amountStr}
               </Text>
               <Badge
-                label={status}
-                variant={status === 'Completed' ? 'success' : 'danger'}
+                label={displayStatus}
+                variant={isPending ? 'warning' : isFailed ? 'danger' : 'success'}
                 size="md"
                 style={styles.statusBadge}
               />

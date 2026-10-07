@@ -18,7 +18,8 @@ interface AuthContextType {
     fullName: string,
     phoneNumber: string,
     email: string,
-    password: string
+    password: string,
+    referralCode?: string
   ) => Promise<{ success: boolean; message?: string }>;
   logout: () => Promise<void>;
 }
@@ -137,10 +138,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     fullName: string,
     phoneNumber: string,
     email: string,
-    password: string
+    password: string,
+    referralCode?: string
   ) => {
     try {
-      const res = await authService.register(fullName, phoneNumber, email, password);
+      const res = await authService.register(fullName, phoneNumber, email, password, referralCode);
       if (res.success && res.token) {
         setIsLoggedIn(true);
         await refreshUser();

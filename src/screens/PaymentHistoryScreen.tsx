@@ -16,6 +16,8 @@ import { PaymentCard } from '../components/PaymentCard';
 import { PaymentDetailModal } from '../components/PaymentDetailModal';
 import { useBottomNavPadding } from '../components/CustomBottomNav';
 import { walletService } from '../services/walletService';
+import { depositService, DepositRecord } from '../services/depositService';
+import { withdrawalService, WithdrawalRecord } from '../services/withdrawalService';
 import { ApiTransaction, PaymentItem } from '../types';
 import { Colors } from '../theme/colors';
 import { Spacing } from '../theme/spacing';
@@ -25,54 +27,19 @@ interface PaymentHistoryScreenProps {
   showBack?: boolean;
 }
 
-export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({
-  onBack,
-  showBack = false,
-}) => {
-  const [activeTab, setActiveTab] = useState<'receive' | 'purchase'>('receive');
-  const [selectedPayment, setSelectedPayment] = useState<PaymentItem | null>(null);
-  const [transactions, setTransactions] = useState<ApiTransaction[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const bottomNavPadding = useBottomNavPadding();
+const buildMergedPaymentItems = (
+  rawTxs: ApiTransaction[] = [],
+  deposits: DepositRecord[] = [],
+  withdrawals: WithdrawalRecord[] = []
+): { receive: PaymentItem[]; purchase: PaymentItem[] } => {
+  const receiveList: PaymentItem[] = [];
+  const purchaseList: PaymentItem[] = [];
+  const processedDepositIds = new Set<string>();
+  const processedUtrs = new Set<string>();
 
-  const tabs = [
-    { id: 'receive' as const, label: 'Receive (Credits)' },
-    { id: 'purchase' as const, label: 'Purchase (Debits)' },
-  ];
-
-  useEffect(() => {
-    let isCancelled = false;
-    walletService.getTransactions({ limit: 50 }).then((res) => {
-      if (isCancelled) return;
-      if (res?.transactions) {
-        setTransactions(res.transactions);
-      }
-      setIsLoading(false);
-    }).catch(() => {
-      if (!isCancelled) setIsLoading(false);
-    });
-    return () => {
-      isCancelled = true;
-    };
-  }, []);
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      const res = await walletService.getTransactions({ limit: 50 });
-      if (res?.transactions) {
-        setTransactions(res.transactions);
-      }
-    } catch (error) {
-      console.warn('Failed to load transaction history:', error);
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
-  // Map ApiTransaction to PaymentItem
-  const mapToPaymentItem = (tx: ApiTransaction): PaymentItem => {
+  // 1. Map existing wallet ledger transactions
+  for (const tx of rawTxs) {
+    const isCredit = tx.type === 'credit';
     const dateObj = new Date(tx.createdAt);
     const dateFormatted = isNaN(dateObj.getTime())
       ? tx.createdAt
@@ -88,14 +55,19 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({
           minute: '2-digit',
         });
 
-    const statusLabel: 'New' | 'Completed' | 'Processing' =
+    if (tx.referenceId) processedDepositIds.add(String(tx.referenceId));
+    processedDepositIds.add(String(tx._id));
+
+    const statusLabel: 'New' | 'Completed' | 'Processing' | 'Pending' | 'Failed' =
       tx.status === 'completed'
         ? 'Completed'
         : tx.status === 'pending'
-        ? 'Processing'
+        ? 'Pending'
+        : tx.status === 'failed'
+        ? 'Failed'
         : 'New';
 
-    return {
+    const item: PaymentItem = {
       id: tx._id,
       orderCode: tx._id ? tx._id.slice(-8).toUpperCase() : 'DRMPAY',
       date: `${dateFormatted} ${timeFormatted}`.trim(),
@@ -106,15 +78,185 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({
       fee: 0,
       description: tx.description,
       terminalId: tx._id ? `TRM-${tx._id.slice(-4).toUpperCase()}` : 'TRM-MAIN',
-      type: tx.type === 'credit' ? 'receive' : 'purchase',
+      type: isCredit ? 'receive' : 'purchase',
     };
+
+    (item as any).rawDate = tx.createdAt;
+
+    if (isCredit) {
+      receiveList.push(item);
+    } else {
+      purchaseList.push(item);
+    }
+  }
+
+  // 2. Merge Deposits (Pending ones show in Receive / Credits)
+  for (const dep of deposits) {
+    if (processedDepositIds.has(String(dep._id))) continue;
+    if (dep.transactionRef && processedUtrs.has(dep.transactionRef)) continue;
+    if (dep.transactionRef) processedUtrs.add(dep.transactionRef);
+
+    const dateObj = new Date(dep.createdAt);
+    const dateFormatted = isNaN(dateObj.getTime())
+      ? dep.createdAt
+      : dateObj.toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        });
+    const timeFormatted = isNaN(dateObj.getTime())
+      ? ''
+      : dateObj.toLocaleTimeString('en-IN', {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+
+    const isPending = dep.status === 'pending';
+    const isApproved = dep.status === 'approved';
+
+    const statusLabel: 'New' | 'Completed' | 'Processing' | 'Pending' | 'Failed' =
+      isApproved ? 'Completed' : isPending ? 'Pending' : 'Failed';
+
+    const item: PaymentItem = {
+      id: dep._id,
+      orderCode: dep.transactionRef
+        ? (dep.transactionRef.length > 8 ? dep.transactionRef.slice(-8).toUpperCase() : dep.transactionRef.toUpperCase())
+        : dep._id.slice(-8).toUpperCase(),
+      date: `${dateFormatted} ${timeFormatted}`.trim(),
+      amount: Number(dep.amount),
+      currency: '₹',
+      status: statusLabel,
+      method: 'UPI DIRECT DEPOSIT',
+      fee: 0,
+      description: isPending
+        ? `Deposit • UTR: ${dep.transactionRef || 'Pending'} (Awaiting Admin Verification)`
+        : `Deposit • UTR: ${dep.transactionRef || 'Approved'}`,
+      terminalId: `DEP-${dep._id.slice(-4).toUpperCase()}`,
+      type: 'receive',
+    };
+    (item as any).rawDate = dep.createdAt;
+    receiveList.push(item);
+  }
+
+  // 3. Merge Withdrawals (Pending ones show in Purchase / Debits)
+  for (const w of withdrawals) {
+    if (processedDepositIds.has(String(w._id))) continue;
+    const dateObj = new Date(w.createdAt);
+    const dateFormatted = isNaN(dateObj.getTime())
+      ? w.createdAt
+      : dateObj.toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        });
+    const timeFormatted = isNaN(dateObj.getTime())
+      ? ''
+      : dateObj.toLocaleTimeString('en-IN', {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+
+    const isPending = w.status === 'pending';
+    const isApproved = w.status === 'approved';
+
+    const statusLabel: 'New' | 'Completed' | 'Processing' | 'Pending' | 'Failed' =
+      isApproved ? 'Completed' : isPending ? 'Pending' : 'Failed';
+
+    const item: PaymentItem = {
+      id: w._id,
+      orderCode: w._id.slice(-8).toUpperCase(),
+      date: `${dateFormatted} ${timeFormatted}`.trim(),
+      amount: Number(w.amount),
+      currency: '₹',
+      status: statusLabel,
+      method: 'BANK WITHDRAWAL',
+      fee: 0,
+      description: isPending
+        ? `Withdrawal to ${w.bankDetails?.upiId || 'UPI'} (Under Review)`
+        : `Withdrawal Settled to ${w.bankDetails?.upiId || 'UPI'}`,
+      terminalId: `WTH-${w._id.slice(-4).toUpperCase()}`,
+      type: 'purchase',
+    };
+    (item as any).rawDate = w.createdAt;
+    purchaseList.push(item);
+  }
+
+  const sortByDate = (a: any, b: any) => {
+    const tA = new Date(a.rawDate).getTime();
+    const tB = new Date(b.rawDate).getTime();
+    return (isNaN(tB) ? 0 : tB) - (isNaN(tA) ? 0 : tA);
   };
 
-  const filteredTransactions = transactions.filter((tx) =>
-    activeTab === 'receive' ? tx.type === 'credit' : tx.type === 'debit'
-  );
+  receiveList.sort(sortByDate);
+  purchaseList.sort(sortByDate);
 
-  const paymentItems: PaymentItem[] = filteredTransactions.map(mapToPaymentItem);
+  return { receive: receiveList, purchase: purchaseList };
+};
+
+export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({
+  onBack,
+  showBack = false,
+}) => {
+  const [activeTab, setActiveTab] = useState<'receive' | 'purchase'>('receive');
+  const [selectedPayment, setSelectedPayment] = useState<PaymentItem | null>(null);
+  const [mergedPayments, setMergedPayments] = useState<{ receive: PaymentItem[]; purchase: PaymentItem[] }>({
+    receive: [],
+    purchase: [],
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const bottomNavPadding = useBottomNavPadding();
+
+  const tabs = [
+    { id: 'receive' as const, label: 'Receive (Credits)' },
+    { id: 'purchase' as const, label: 'Purchase (Debits)' },
+  ];
+
+  useEffect(() => {
+    let isCancelled = false;
+    Promise.allSettled([
+      walletService.getTransactions({ limit: 50 }),
+      depositService.getDepositHistory(),
+      withdrawalService.getWithdrawalHistory(),
+    ])
+      .then(([txRes, depRes, withRes]) => {
+        if (isCancelled) return;
+        const rawTxs = txRes.status === 'fulfilled' && txRes.value?.transactions ? txRes.value.transactions : [];
+        const deposits = depRes.status === 'fulfilled' && Array.isArray(depRes.value) ? depRes.value : [];
+        const withdrawals = withRes.status === 'fulfilled' && Array.isArray(withRes.value) ? withRes.value : [];
+        const merged = buildMergedPaymentItems(rawTxs, deposits, withdrawals);
+        setMergedPayments(merged);
+      })
+      .finally(() => {
+        if (!isCancelled) setIsLoading(false);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      const [txRes, depRes, withRes] = await Promise.allSettled([
+        walletService.getTransactions({ limit: 50 }),
+        depositService.getDepositHistory(),
+        withdrawalService.getWithdrawalHistory(),
+      ]);
+      const rawTxs = txRes.status === 'fulfilled' && txRes.value?.transactions ? txRes.value.transactions : [];
+      const deposits = depRes.status === 'fulfilled' && Array.isArray(depRes.value) ? depRes.value : [];
+      const withdrawals = withRes.status === 'fulfilled' && Array.isArray(withRes.value) ? withRes.value : [];
+      const merged = buildMergedPaymentItems(rawTxs, deposits, withdrawals);
+      setMergedPayments(merged);
+    } catch (error) {
+      console.warn('Failed to load transaction history:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const paymentItems: PaymentItem[] = activeTab === 'receive' ? mergedPayments.receive : mergedPayments.purchase;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>

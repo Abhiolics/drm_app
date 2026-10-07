@@ -12,6 +12,10 @@ interface PaymentCardProps {
 }
 
 export const PaymentCard: React.FC<PaymentCardProps> = ({ payment, onPress }) => {
+  const isReferral =
+    payment.method.toLowerCase().includes('referral') ||
+    payment.description?.toLowerCase().includes('referral');
+
   return (
     <TouchableOpacity
       activeOpacity={0.75}
@@ -20,23 +24,36 @@ export const PaymentCard: React.FC<PaymentCardProps> = ({ payment, onPress }) =>
     >
       <View style={styles.topRow}>
         <Text
-          style={[Typography.h2, styles.amount]}
+          style={[
+            Typography.h2,
+            styles.amount,
+            isReferral && { color: Colors.success },
+          ]}
           numberOfLines={1}
           adjustsFontSizeToFit
           minimumFontScale={0.8}
         >
+          {isReferral ? '+ ' : ''}
           {payment.currency}
           {payment.amount}
           <Text style={styles.slash}>/-</Text>
         </Text>
         <Badge
-          label={payment.status}
+          label={
+            isReferral
+              ? 'Referral Bonus'
+              : payment.status === 'Processing'
+              ? 'Pending'
+              : payment.status
+          }
           variant={
-            payment.status === 'New'
-              ? 'danger'
-              : payment.status === 'Completed'
+            isReferral || payment.status === 'Completed'
               ? 'success'
-              : 'warning'
+              : payment.status === 'Failed'
+              ? 'danger'
+              : payment.status === 'Pending' || payment.status === 'Processing'
+              ? 'warning'
+              : 'neutral'
           }
           size="sm"
         />

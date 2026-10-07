@@ -410,7 +410,7 @@ export const DepositScreen: React.FC<DepositScreenProps> = ({
               Payment Submitted!
             </Text>
             <Text style={styles.modalSuccessSubtitle}>
-              Your deposit of ₹{Number(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })} has been received for verification.
+              Your deposit of ₹{Number(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })} has been received and marked as Pending until verified by the admin.
             </Text>
 
             <View style={styles.modalReceiptCard}>
@@ -427,6 +427,12 @@ export const DepositScreen: React.FC<DepositScreenProps> = ({
               <View style={styles.receiptRow}>
                 <Text style={styles.receiptLabel}>Method</Text>
                 <Text style={styles.receiptValue}>UPI Direct Pay</Text>
+              </View>
+              <View style={styles.receiptRow}>
+                <Text style={styles.receiptLabel}>Status</Text>
+                <Text style={[styles.receiptValue, { color: Colors.warning, fontWeight: '700' }]}>
+                  Pending (In Verification)
+                </Text>
               </View>
               <View style={styles.receiptRow}>
                 <Text style={styles.receiptLabel}>Estimated Credit</Text>

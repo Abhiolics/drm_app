@@ -25,11 +25,11 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "owner": "abhi2566",
     "extra": {
       "eas": {
-        "projectId": "0112830c-4dd3-40ad-ab0d-3d1d8cd9a7fa"
+        "projectId": "2e425414-6592-4335-a2fe-55769984be12"
       }
-    },
-    "owner": "abhiolics"
+    }
   }
 }

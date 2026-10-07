@@ -24,6 +24,7 @@ import {
   User,
   Phone,
   CheckCircle2,
+  Gift,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -50,6 +51,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [otp, setOtp] = useState('');
 
   // UI States
@@ -215,7 +217,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         trimmedName,
         trimmedPhone,
         trimmedEmail,
-        password
+        password,
+        referralCode.trim() ? referralCode.trim().toUpperCase() : undefined
       );
       setIsSubmitting(false);
 
@@ -620,6 +623,36 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                   />
                 </View>
 
+                {/* Referral Code (Optional) */}
+                <View style={styles.referralHeaderRow}>
+                  <Text style={styles.inputLabel}>Referral Code (Optional)</Text>
+                  {referralCode.trim().length >= 4 && (
+                    <View style={styles.referralBadge}>
+                      <CheckCircle2 size={12} color={Colors.success} />
+                      <Text style={styles.referralBadgeText}>Referral Applied</Text>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.inputRow}>
+                  <Gift
+                    size={18}
+                    color={referralCode.trim() ? Colors.primary : Colors.textSecondary}
+                    style={{ marginRight: 10 }}
+                  />
+                  <TextInput
+                    style={[styles.textInput, { textTransform: 'uppercase' }]}
+                    value={referralCode}
+                    onChangeText={(txt) => {
+                      setReferralCode(txt.toUpperCase().replace(/\s/g, ''));
+                      clearMessages();
+                    }}
+                    placeholder="Enter referral code (e.g. DRM598AB)"
+                    placeholderTextColor={Colors.textMuted}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                  />
+                </View>
+
                 {/* Create Account Button */}
                 <TouchableOpacity
                   activeOpacity={0.85}
@@ -910,5 +943,25 @@ const styles = StyleSheet.create({
     ...Typography.captionSmall,
     color: Colors.textMuted,
     fontWeight: '500',
+  },
+  referralHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  referralBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.successBg,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.xs,
+  },
+  referralBadgeText: {
+    color: Colors.success,
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

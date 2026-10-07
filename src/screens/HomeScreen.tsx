@@ -13,12 +13,13 @@ import {
   Bell,
   Award,
   TrendingUp,
-  Users,
   Receipt,
   ArrowUpRight,
   ArrowDownLeft,
   Copy,
   Bot,
+  Gift,
+  Sparkles,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -31,8 +32,8 @@ import { NotificationModal } from '../components/NotificationModal';
 import { useBottomNavPadding } from '../components/CustomBottomNav';
 import { useAuth } from '../context/AuthContext';
 import { walletService } from '../services/walletService';
-import { depositService } from '../services/depositService';
-import { withdrawalService } from '../services/withdrawalService';
+import { depositService, DepositRecord } from '../services/depositService';
+import { withdrawalService, WithdrawalRecord } from '../services/withdrawalService';
 import { Transaction, TransactionType, TransactionStatus, ApiTransaction } from '../types';
 
 interface HomeScreenProps {
@@ -42,7 +43,151 @@ interface HomeScreenProps {
   onNavigateToAssets?: () => void;
   onNavigateToTeams?: () => void;
   onNavigateToPlans?: () => void;
+  onNavigateToWithdraw?: () => void;
 }
+
+const buildMergedTransactions = (
+  rawTxs: ApiTransaction[] = [],
+  deposits: DepositRecord[] = [],
+  withdrawals: WithdrawalRecord[] = []
+): Transaction[] => {
+  const list: Transaction[] = [];
+  const processedDepositIds = new Set<string>();
+  const processedUtrs = new Set<string>();
+
+  // 1. Map existing wallet transactions
+  for (const tx of rawTxs) {
+    const isPos = tx.type === 'credit';
+    const dateObj = new Date(tx.createdAt);
+    const formattedDate = !isNaN(dateObj.getTime())
+      ? dateObj.toLocaleDateString('en-IN', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+        }) +
+        ' ' +
+        dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+      : tx.createdAt;
+
+    if (tx.referenceId) processedDepositIds.add(String(tx.referenceId));
+    processedDepositIds.add(String(tx._id));
+
+    list.push({
+      id: tx._id,
+      orderCode: tx._id.slice(-6).toUpperCase(),
+      title:
+        tx.description ||
+        (tx.category === 'referral_bonus'
+          ? 'Referral Bonus'
+          : tx.category === 'deposit'
+          ? 'Deposit INR'
+          : tx.category === 'withdrawal'
+          ? 'Withdrawal Payout'
+          : 'Task Reward'),
+      type: (isPos ? 'deposit' : 'withdrawal') as TransactionType,
+      date: formattedDate,
+      rawDate: tx.createdAt,
+      amount: tx.amount,
+      formattedAmount: `${isPos ? '+ ' : '- '}₹ ${Number(tx.amount).toFixed(2)}`,
+      isPositive: isPos,
+      status: (tx.status === 'completed'
+        ? 'Completed'
+        : tx.status === 'pending'
+        ? 'Pending'
+        : 'Failed') as TransactionStatus,
+      paymentMethod:
+        tx.category === 'referral_bonus'
+          ? 'Referral Bonus'
+          : tx.category === 'deposit'
+          ? 'UPI Direct Deposit'
+          : tx.category === 'withdrawal'
+          ? 'Bank Payout'
+          : 'Task Incentive',
+      fee: 0,
+      recipientOrSender: 'DreamPay Settlement Gateway',
+    });
+  }
+
+  // 2. Merge Deposits (especially pending ones until admin verification)
+  for (const dep of deposits) {
+    if (processedDepositIds.has(String(dep._id))) continue;
+    if (dep.transactionRef && processedUtrs.has(dep.transactionRef)) continue;
+    if (dep.transactionRef) processedUtrs.add(dep.transactionRef);
+
+    const dateObj = new Date(dep.createdAt);
+    const formattedDate = !isNaN(dateObj.getTime())
+      ? dateObj.toLocaleDateString('en-IN', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+        }) +
+        ' ' +
+        dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+      : dep.createdAt;
+
+    const isPending = dep.status === 'pending';
+    const isApproved = dep.status === 'approved';
+
+    list.push({
+      id: dep._id,
+      orderCode: dep.transactionRef
+        ? (dep.transactionRef.length > 8 ? dep.transactionRef.slice(-8).toUpperCase() : dep.transactionRef.toUpperCase())
+        : dep._id.slice(-6).toUpperCase(),
+      title: isPending ? 'Deposit INR (Pending)' : 'Deposit INR',
+      type: 'deposit',
+      date: formattedDate,
+      rawDate: dep.createdAt,
+      amount: Number(dep.amount),
+      formattedAmount: `+ ₹ ${Number(dep.amount).toFixed(2)}`,
+      isPositive: true,
+      status: (isApproved ? 'Completed' : isPending ? 'Pending' : 'Failed') as TransactionStatus,
+      paymentMethod: 'UPI Direct Deposit',
+      fee: 0,
+      recipientOrSender: 'DreamPay Settlement Gateway',
+    });
+  }
+
+  // 3. Merge Withdrawals (pending ones)
+  for (const w of withdrawals) {
+    if (w.status === 'pending' && !processedDepositIds.has(String(w._id))) {
+      const dateObj = new Date(w.createdAt);
+      const formattedDate = !isNaN(dateObj.getTime())
+        ? dateObj.toLocaleDateString('en-IN', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+          }) +
+          ' ' +
+          dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+        : w.createdAt;
+
+      list.push({
+        id: w._id,
+        orderCode: w._id.slice(-6).toUpperCase(),
+        title: 'Withdrawal Payout (Pending)',
+        type: 'withdrawal',
+        date: formattedDate,
+        rawDate: w.createdAt,
+        amount: Number(w.amount),
+        formattedAmount: `- ₹ ${Number(w.amount).toFixed(2)}`,
+        isPositive: false,
+        status: 'Pending' as TransactionStatus,
+        paymentMethod: 'Bank Payout',
+        fee: 0,
+        recipientOrSender: w.bankDetails?.upiId || 'UPI Direct',
+      });
+    }
+  }
+
+  // 4. Sort by rawDate descending (newest first)
+  list.sort((a, b) => {
+    const tA = new Date(a.rawDate).getTime();
+    const tB = new Date(b.rawDate).getTime();
+    return (isNaN(tB) ? 0 : tB) - (isNaN(tA) ? 0 : tA);
+  });
+
+  return list;
+};
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigateToPayments,
@@ -51,6 +196,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigateToAssets,
   onNavigateToTeams,
   onNavigateToPlans,
+  onNavigateToWithdraw,
 }) => {
   const { user, wallet, unreadNotifications, refreshUser } = useAuth();
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
@@ -64,7 +210,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   useEffect(() => {
     let isCancelled = false;
     Promise.allSettled([
-      walletService.getTransactions({ limit: 5 }),
+      walletService.getTransactions({ limit: 10 }),
       depositService.getDepositHistory(),
       withdrawalService.getWithdrawalHistory(),
     ]).then(([txRes, depRes, withRes]) => {
@@ -81,53 +227,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           .reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
         setWithdrawalSum(approvedWithdrawals);
       }
-      if (txRes.status === 'fulfilled' && txRes.value?.transactions) {
-        const mapped: Transaction[] = txRes.value.transactions.map((tx: ApiTransaction) => {
-          const isPos = tx.type === 'credit';
-          const dateObj = new Date(tx.createdAt);
-          const formattedDate = !isNaN(dateObj.getTime())
-            ? dateObj.toLocaleDateString('en-IN', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-              }) +
-              ' ' +
-              dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
-            : tx.createdAt;
 
-          return {
-            id: tx._id,
-            orderCode: tx._id.slice(-6).toUpperCase(),
-            title:
-              tx.description ||
-              (tx.category === 'deposit'
-                ? 'Deposit INR'
-                : tx.category === 'withdrawal'
-                ? 'Withdrawal Payout'
-                : 'Task Reward'),
-            type: (isPos ? 'deposit' : 'withdrawal') as TransactionType,
-            date: formattedDate,
-            rawDate: tx.createdAt,
-            amount: tx.amount,
-            formattedAmount: `${isPos ? '+ ' : '- '}₹ ${Number(tx.amount).toFixed(2)}`,
-            isPositive: isPos,
-            status: (tx.status === 'completed'
-              ? 'Completed'
-              : tx.status === 'pending'
-              ? 'Pending'
-              : 'Failed') as TransactionStatus,
-            paymentMethod:
-              tx.category === 'deposit'
-                ? 'UPI Direct Deposit'
-                : tx.category === 'withdrawal'
-                ? 'Bank Payout'
-                : 'Task Incentive',
-            fee: 0,
-            recipientOrSender: 'DreamPay Settlement Gateway',
-          };
-        });
-        setRecentTransactions(mapped);
-      }
+      const rawTxs = txRes.status === 'fulfilled' && txRes.value?.transactions ? txRes.value.transactions : [];
+      const deposits = depRes.status === 'fulfilled' && Array.isArray(depRes.value) ? depRes.value : [];
+      const withdrawals = withRes.status === 'fulfilled' && Array.isArray(withRes.value) ? withRes.value : [];
+      const merged = buildMergedTransactions(rawTxs, deposits, withdrawals);
+      setRecentTransactions(merged.slice(0, 5));
     });
     return () => {
       isCancelled = true;
@@ -145,7 +250,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       const [depRes, withRes, txRes] = await Promise.allSettled([
         depositService.getDepositHistory(),
         withdrawalService.getWithdrawalHistory(),
-        walletService.getTransactions({ limit: 5 }),
+        walletService.getTransactions({ limit: 10 }),
       ]);
       if (depRes.status === 'fulfilled' && Array.isArray(depRes.value)) {
         const approvedDeposits = depRes.value
@@ -159,53 +264,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           .reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
         setWithdrawalSum(approvedWithdrawals);
       }
-      if (txRes.status === 'fulfilled' && txRes.value?.transactions) {
-        const mapped: Transaction[] = txRes.value.transactions.map((tx: ApiTransaction) => {
-          const isPos = tx.type === 'credit';
-          const dateObj = new Date(tx.createdAt);
-          const formattedDate = !isNaN(dateObj.getTime())
-            ? dateObj.toLocaleDateString('en-IN', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-              }) +
-              ' ' +
-              dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
-            : tx.createdAt;
 
-          return {
-            id: tx._id,
-            orderCode: tx._id.slice(-6).toUpperCase(),
-            title:
-              tx.description ||
-              (tx.category === 'deposit'
-                ? 'Deposit INR'
-                : tx.category === 'withdrawal'
-                ? 'Withdrawal Payout'
-                : 'Task Reward'),
-            type: (isPos ? 'deposit' : 'withdrawal') as TransactionType,
-            date: formattedDate,
-            rawDate: tx.createdAt,
-            amount: tx.amount,
-            formattedAmount: `${isPos ? '+ ' : '- '}₹ ${Number(tx.amount).toFixed(2)}`,
-            isPositive: isPos,
-            status: (tx.status === 'completed'
-              ? 'Completed'
-              : tx.status === 'pending'
-              ? 'Pending'
-              : 'Failed') as TransactionStatus,
-            paymentMethod:
-              tx.category === 'deposit'
-                ? 'UPI Direct Deposit'
-                : tx.category === 'withdrawal'
-                ? 'Bank Payout'
-                : 'Task Incentive',
-            fee: 0,
-            recipientOrSender: 'DreamPay Settlement Gateway',
-          };
-        });
-        setRecentTransactions(mapped);
-      }
+      const rawTxs = txRes.status === 'fulfilled' && txRes.value?.transactions ? txRes.value.transactions : [];
+      const deposits = depRes.status === 'fulfilled' && Array.isArray(depRes.value) ? depRes.value : [];
+      const withdrawals = withRes.status === 'fulfilled' && Array.isArray(withRes.value) ? withRes.value : [];
+      const merged = buildMergedTransactions(rawTxs, deposits, withdrawals);
+      setRecentTransactions(merged.slice(0, 5));
+
       await refreshUser();
     } catch {
       // Fallback
@@ -218,7 +283,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     { id: 'tasks', label: 'Tasks', icon: Award, action: onNavigateToTasks },
     { id: 'orders', label: 'Orders', icon: Receipt, action: onNavigateToPayments },
     { id: 'plan', label: 'Payments', icon: TrendingUp, action: onNavigateToPlans || onNavigateToStats },
-    { id: 'teams', label: 'Teams', icon: Users, action: onNavigateToTeams },
+    { id: 'teams', label: 'Refer & Earn', icon: Gift, action: onNavigateToTeams },
   ];
 
   const handleActionPress = (actionFn?: () => void) => {
@@ -370,7 +435,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 {/* Right: Withdrawal */}
                 <TouchableOpacity
                   activeOpacity={0.8}
-                  onPress={onNavigateToPayments}
+                  onPress={onNavigateToWithdraw || onNavigateToPayments}
                   style={styles.metricBannerCol}
                 >
                   <View style={styles.metricBannerTitleRow}>
@@ -410,6 +475,51 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 );
               })}
             </View>
+
+            {/* Eye-Catching "Invite & Earn 2-Level Commission" Banner */}
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => {
+                try {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                } catch {
+                  // Fallback
+                }
+                onNavigateToTeams?.();
+              }}
+              style={styles.referralBannerContainer}
+            >
+              <LinearGradient
+                colors={['#065F46', '#047857', '#0F766E']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.referralBannerGradient}
+              >
+                <View style={styles.bannerDecorCircle} />
+                <View style={styles.bannerLeftContent}>
+                  <View style={styles.bannerTagRow}>
+                    <Sparkles size={11} color="#FDE047" />
+                    <Text style={styles.bannerTagText}>REFER & EARN PROGRAM</Text>
+                  </View>
+                  <Text style={styles.bannerTitle}>
+                    Invite & Earn 2-Level Commission
+                  </Text>
+                  <Text style={styles.bannerSubtitle}>
+                    Earn 2% on Direct (L1) + 1% on Indirect (L2) team deposits automatically!
+                  </Text>
+                </View>
+
+                <View style={styles.bannerRightAction}>
+                  <View style={styles.bannerIconCircle}>
+                    <Gift size={22} color="#FDE047" />
+                  </View>
+                  <View style={styles.bannerCtaPill}>
+                    <Text style={styles.bannerCtaText}>Invite</Text>
+                    <ArrowUpRight size={13} color="#065F46" />
+                  </View>
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
 
             {/* Transactions Section Header */}
             <View style={styles.sectionHeader}>
@@ -847,5 +957,92 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: '#FFFFFF',
+  },
+  referralBannerContainer: {
+    marginBottom: Spacing.md,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#065F46',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  referralBannerGradient: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  bannerDecorCircle: {
+    position: 'absolute',
+    top: -20,
+    right: 40,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  bannerLeftContent: {
+    flex: 1,
+    marginRight: 12,
+  },
+  bannerTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+  },
+  bannerTagText: {
+    color: '#FEF08A',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+  },
+  bannerTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+    marginBottom: 4,
+  },
+  bannerSubtitle: {
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '500',
+  },
+  bannerRightAction: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    flexShrink: 0,
+  },
+  bannerIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  bannerCtaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF08A',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+    gap: 2,
+  },
+  bannerCtaText: {
+    color: '#065F46',
+    fontSize: 11,
+    fontWeight: '800',
   },
 });

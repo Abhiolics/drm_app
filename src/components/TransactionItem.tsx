@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { ArrowDownLeft, ArrowUpRight } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowUpRight, Gift, Clock } from 'lucide-react-native';
 import { Transaction } from '../types';
 import { Colors } from '../theme/colors';
 import { BorderRadius, Spacing } from '../theme/spacing';
@@ -16,7 +16,11 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
   transaction,
   onPress,
 }) => {
+  const isReferral =
+    transaction.paymentMethod === 'Referral Bonus' ||
+    transaction.title.toLowerCase().includes('referral');
   const isDeposit = transaction.type === 'deposit';
+  const isPending = transaction.status === 'Pending';
 
   return (
     <TouchableOpacity
@@ -29,13 +33,21 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
           style={[
             styles.iconContainer,
             {
-              backgroundColor: isDeposit
+              backgroundColor: isReferral
+                ? '#D1FAE5'
+                : isPending
+                ? '#FEF3C7'
+                : isDeposit
                 ? Colors.successBg
                 : Colors.dangerBg,
             },
           ]}
         >
-          {isDeposit ? (
+          {isReferral ? (
+            <Gift size={18} color="#059669" />
+          ) : isPending ? (
+            <Clock size={18} color="#D97706" />
+          ) : isDeposit ? (
             <ArrowDownLeft size={18} color={Colors.success} />
           ) : (
             <ArrowUpRight size={18} color={Colors.danger} />
@@ -57,7 +69,7 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
           style={[
             Typography.bodySemiBold,
             styles.amount,
-            { color: Colors.textPrimary },
+            { color: isReferral ? '#059669' : Colors.textPrimary },
           ]}
           numberOfLines={1}
           adjustsFontSizeToFit
@@ -66,8 +78,22 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
           {transaction.formattedAmount}
         </Text>
         <Badge
-          label={transaction.status === 'Failed' ? 'Close' : transaction.status}
-          variant={transaction.status === 'Completed' ? 'success' : transaction.status === 'Failed' ? 'danger' : 'neutral'}
+          label={
+            isReferral
+              ? 'Referral Bonus'
+              : transaction.status === 'Failed'
+              ? 'Close'
+              : transaction.status
+          }
+          variant={
+            isReferral || transaction.status === 'Completed'
+              ? 'success'
+              : transaction.status === 'Failed'
+              ? 'danger'
+              : transaction.status === 'Pending'
+              ? 'warning'
+              : 'neutral'
+          }
           size="sm"
           style={styles.badge}
         />
