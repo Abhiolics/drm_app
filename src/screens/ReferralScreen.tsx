@@ -6,6 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   Share,
+  Linking,
+  Platform,
   RefreshControl,
   ActivityIndicator,
   Animated,
@@ -26,6 +28,8 @@ import {
   ArrowUpRight,
   ShieldCheck,
   CheckCircle2,
+  Globe,
+  ExternalLink,
 } from 'lucide-react-native';
 import { Header } from '../components/Header';
 import { useBottomNavPadding } from '../components/CustomBottomNav';
@@ -122,10 +126,8 @@ export const ReferralScreen: React.FC<ReferralScreenProps> = ({
     user?.referralCode ||
     (user?._id ? user._id.slice(-6).toUpperCase() : 'DRMPAY');
 
-  const referralLink =
-    stats?.referralLink ||
-    user?.referralLink ||
-    `https://drmpbackend.vercel.app/register?ref=${referralCode}`;
+  // Official DreamPay Web Portal Invite Link
+  const referralLink = `https://dreampay.info/?invite=${referralCode}`;
 
   const handleCopyCode = async () => {
     try {
@@ -147,13 +149,41 @@ export const ReferralScreen: React.FC<ReferralScreenProps> = ({
     }
   };
 
+  const handleOpenLink = async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const supported = await Linking.canOpenURL(referralLink);
+      if (supported) {
+        await Linking.openURL(referralLink);
+      } else {
+        await Linking.openURL('https://dreampay.info/');
+      }
+    } catch (err) {
+      console.warn('Could not open invite link:', err);
+      showToast('Opening dreampay.info...');
+      try {
+        await Linking.openURL('https://dreampay.info/');
+      } catch {
+        // Fallback
+      }
+    }
+  };
+
   const handleShare = async () => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await Share.share({
-        message: `🚀 Join my team on DreamPay and start earning daily income!\n\nUse my invite code: ${referralCode}\nSign up link: ${referralLink}\n\nEarn 2% Level-1 and 1% Level-2 commission on all deposits automatically!`,
-        title: 'DreamPay Refer & Earn Invitation',
-      });
+      await Share.share(
+        Platform.OS === 'ios'
+          ? {
+              title: 'DreamPay Refer & Earn Invitation',
+              url: referralLink,
+              message: `🚀 Join my team on DreamPay and start earning daily income!\n\nUse my invite code: ${referralCode}\nSign up link: ${referralLink}\n\nEarn 2% Level-1 and 1% Level-2 commission on all deposits automatically!`,
+            }
+          : {
+              title: 'DreamPay Refer & Earn Invitation',
+              message: `🚀 Join my team on DreamPay and start earning daily income!\n\nUse my invite code: ${referralCode}\nSign up link: ${referralLink}\n\nEarn 2% Level-1 and 1% Level-2 commission on all deposits automatically!`,
+            }
+      );
     } catch {
       // Fallback
     }
@@ -274,15 +304,31 @@ export const ReferralScreen: React.FC<ReferralScreenProps> = ({
                   </View>
                 </View>
 
-                {/* Action Buttons: Share Sheet & Copy Link */}
+                {/* Referral / Invite Link Display */}
+                <View style={styles.linkBlock}>
+                  <Text style={styles.codeSubtitle}>OFFICIAL INVITE LINK</Text>
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={handleOpenLink}
+                    style={styles.linkRow}
+                  >
+                    <Globe size={14} color="#A7F3D0" style={{ marginRight: 6 }} />
+                    <Text style={styles.linkText} numberOfLines={1}>
+                      {referralLink}
+                    </Text>
+                    <ExternalLink size={13} color="#FDE047" style={{ marginLeft: 6 }} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Action Buttons: Share Sheet, Copy Link & Open Website */}
                 <View style={styles.shareActionsRow}>
                   <TouchableOpacity
                     activeOpacity={0.85}
                     onPress={handleShare}
                     style={styles.shareSheetBtn}
                   >
-                    <Share2 size={16} color="#065F46" />
-                    <Text style={styles.shareSheetBtnText}>Share Link</Text>
+                    <Share2 size={15} color="#065F46" />
+                    <Text style={styles.shareSheetBtnText}>Share</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -290,8 +336,17 @@ export const ReferralScreen: React.FC<ReferralScreenProps> = ({
                     onPress={handleCopyLink}
                     style={styles.copyLinkPillBtn}
                   >
-                    <Copy size={15} color="#FFFFFF" />
+                    <Copy size={14} color="#FFFFFF" />
                     <Text style={styles.copyLinkPillBtnText}>Copy Link</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={handleOpenLink}
+                    style={styles.openWebBtn}
+                  >
+                    <ExternalLink size={14} color="#065F46" />
+                    <Text style={styles.openWebBtnText}>Open Web</Text>
                   </TouchableOpacity>
                 </View>
               </LinearGradient>
@@ -758,17 +813,40 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 12,
   },
+  linkBlock: {
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.22)',
+    padding: 10,
+    marginBottom: 12,
+  },
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  linkText: {
+    color: '#E0E7FF',
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
+  },
   shareActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
   shareSheetBtn: {
-    flex: 1.2,
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 5,
     backgroundColor: '#FEF08A',
     paddingVertical: 11,
     borderRadius: BorderRadius.full,
@@ -781,14 +859,14 @@ const styles = StyleSheet.create({
   shareSheetBtnText: {
     color: '#065F46',
     fontWeight: '800',
-    fontSize: 13,
+    fontSize: 12,
   },
   copyLinkPillBtn: {
-    flex: 1,
+    flex: 1.1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 5,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.4)',
@@ -798,7 +876,27 @@ const styles = StyleSheet.create({
   copyLinkPillBtnText: {
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 13,
+    fontSize: 12,
+  },
+  openWebBtn: {
+    flex: 1.1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 11,
+    borderRadius: BorderRadius.full,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  openWebBtnText: {
+    color: '#065F46',
+    fontWeight: '800',
+    fontSize: 12,
   },
   sectionTitleRow: {
     flexDirection: 'row',

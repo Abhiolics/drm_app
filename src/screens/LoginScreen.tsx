@@ -10,6 +10,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Image,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -72,6 +73,27 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     }
     return () => clearInterval(interval);
   }, [otpSent, countdown]);
+
+  // Auto-detect invite referral code from deep link (e.g., https://dreampay.info/?invite=ANX4AUJB)
+  useEffect(() => {
+    const handleUrl = (url: string | null) => {
+      if (!url) return;
+      try {
+        const match = url.match(/[?&](?:invite|ref)=([A-Za-z0-9_-]+)/i);
+        if (match && match[1]) {
+          const extractedCode = match[1].toUpperCase().trim();
+          setReferralCode(extractedCode);
+          setTabMode('signup');
+        }
+      } catch {
+        // Fallback
+      }
+    };
+
+    Linking.getInitialURL().then(handleUrl);
+    const sub = Linking.addEventListener('url', ({ url }) => handleUrl(url));
+    return () => sub.remove();
+  }, []);
 
   const clearMessages = () => {
     setErrorMessage(null);

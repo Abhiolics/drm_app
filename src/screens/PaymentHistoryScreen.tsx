@@ -34,11 +34,40 @@ const buildMergedPaymentItems = (
 ): { receive: PaymentItem[]; purchase: PaymentItem[] } => {
   const receiveList: PaymentItem[] = [];
   const purchaseList: PaymentItem[] = [];
-  const processedDepositIds = new Set<string>();
+
+  // Sets for tracking seen IDs, references, and UTRs to guarantee zero duplicates
+  const processedTxIds = new Set<string>();
+  const processedReferenceIds = new Set<string>();
   const processedUtrs = new Set<string>();
+
+  // Helper to extract UTR from description strings if present
+  const extractUtr = (str?: string): string | null => {
+    if (!str) return null;
+    const match = str.match(/UTR[:\s-]+([A-Za-z0-9]+)/i);
+    return match && match[1] ? match[1].trim().toLowerCase() : null;
+  };
+
+  // Pre-seed reference tracking from wallet transactions
+  for (const tx of rawTxs) {
+    if (tx._id) processedReferenceIds.add(String(tx._id));
+    if (tx.referenceId) {
+      const refStr = String(tx.referenceId).trim();
+      processedReferenceIds.add(refStr);
+      processedUtrs.add(refStr.toLowerCase());
+    }
+    const utrFromDesc = extractUtr(tx.description);
+    if (utrFromDesc) {
+      processedUtrs.add(utrFromDesc);
+    }
+  }
 
   // 1. Map existing wallet ledger transactions
   for (const tx of rawTxs) {
+    if (!tx || !tx._id) continue;
+    const txId = String(tx._id);
+    if (processedTxIds.has(txId)) continue;
+    processedTxIds.add(txId);
+
     const isCredit = tx.type === 'credit';
     const dateObj = new Date(tx.createdAt);
     const dateFormatted = isNaN(dateObj.getTime())
@@ -55,9 +84,6 @@ const buildMergedPaymentItems = (
           minute: '2-digit',
         });
 
-    if (tx.referenceId) processedDepositIds.add(String(tx.referenceId));
-    processedDepositIds.add(String(tx._id));
-
     const statusLabel: 'New' | 'Completed' | 'Processing' | 'Pending' | 'Failed' =
       tx.status === 'completed'
         ? 'Completed'
@@ -67,34 +93,68 @@ const buildMergedPaymentItems = (
         ? 'Failed'
         : 'New';
 
+    // USER REQUIREMENT:
+    // Entries showing in purchase must be shown in receive,
+    // and entries showing in receive must be shown in purchase!
+    // Debits/Withdrawals (!isCredit) -> receive
+    // Credits/Deposits (isCredit) -> purchase
     const item: PaymentItem = {
-      id: tx._id,
+      id: txId,
       orderCode: tx._id ? tx._id.slice(-8).toUpperCase() : 'DRMPAY',
       date: `${dateFormatted} ${timeFormatted}`.trim(),
-      amount: tx.amount,
+      amount: Number(tx.amount) || 0,
       currency: '₹',
       status: statusLabel,
       method: (tx.category || tx.type || 'wallet').replace('_', ' ').toUpperCase(),
       fee: 0,
       description: tx.description,
       terminalId: tx._id ? `TRM-${tx._id.slice(-4).toUpperCase()}` : 'TRM-MAIN',
-      type: isCredit ? 'receive' : 'purchase',
+      type: isCredit ? 'purchase' : 'receive',
     };
 
     (item as any).rawDate = tx.createdAt;
 
     if (isCredit) {
-      receiveList.push(item);
+      const isTaskReward =
+        tx.category === "task_reward" ||
+        (typeof tx.description === "string" &&
+          tx.description.toLowerCase().startsWith("task reward"));
+      if (!isTaskReward) {
+        purchaseList.push(item);
+      }
     } else {
-      purchaseList.push(item);
+      receiveList.push(item);
     }
   }
 
-  // 2. Merge Deposits (Pending ones show in Receive / Credits)
+  // 2. Merge Deposits (Deposits show under Purchase)
   for (const dep of deposits) {
-    if (processedDepositIds.has(String(dep._id))) continue;
-    if (dep.transactionRef && processedUtrs.has(dep.transactionRef)) continue;
-    if (dep.transactionRef) processedUtrs.add(dep.transactionRef);
+    if (!dep || !dep._id) continue;
+    const depId = String(dep._id);
+    const utr = dep.transactionRef ? dep.transactionRef.trim().toLowerCase() : '';
+
+    // Check if already merged or UTR already recorded in ledger
+    if (processedReferenceIds.has(depId)) continue;
+    if (utr && processedUtrs.has(utr)) continue;
+
+    // Check if approved deposit is already represented in raw wallet transactions
+    if (dep.status === 'approved') {
+      const depTime = new Date(dep.createdAt).getTime();
+      const alreadyInRaw = rawTxs.some((tx) => {
+        if (tx.type !== 'credit') return false;
+        if (Number(tx.amount) !== Number(dep.amount)) return false;
+        const txTime = new Date(tx.createdAt).getTime();
+        return Math.abs(txTime - depTime) < 2 * 60 * 60 * 1000 || tx.category === 'deposit';
+      });
+      if (alreadyInRaw) {
+        processedReferenceIds.add(depId);
+        if (utr) processedUtrs.add(utr);
+        continue;
+      }
+    }
+
+    processedReferenceIds.add(depId);
+    if (utr) processedUtrs.add(utr);
 
     const dateObj = new Date(dep.createdAt);
     const dateFormatted = isNaN(dateObj.getTime())
@@ -118,12 +178,12 @@ const buildMergedPaymentItems = (
       isApproved ? 'Completed' : isPending ? 'Pending' : 'Failed';
 
     const item: PaymentItem = {
-      id: dep._id,
+      id: depId,
       orderCode: dep.transactionRef
         ? (dep.transactionRef.length > 8 ? dep.transactionRef.slice(-8).toUpperCase() : dep.transactionRef.toUpperCase())
         : dep._id.slice(-8).toUpperCase(),
       date: `${dateFormatted} ${timeFormatted}`.trim(),
-      amount: Number(dep.amount),
+      amount: Number(dep.amount) || 0,
       currency: '₹',
       status: statusLabel,
       method: 'UPI DIRECT DEPOSIT',
@@ -132,15 +192,36 @@ const buildMergedPaymentItems = (
         ? `Deposit • UTR: ${dep.transactionRef || 'Pending'} (Awaiting Admin Verification)`
         : `Deposit • UTR: ${dep.transactionRef || 'Approved'}`,
       terminalId: `DEP-${dep._id.slice(-4).toUpperCase()}`,
-      type: 'receive',
+      type: 'purchase',
     };
     (item as any).rawDate = dep.createdAt;
-    receiveList.push(item);
+    purchaseList.push(item);
   }
 
-  // 3. Merge Withdrawals (Pending ones show in Purchase / Debits)
+  // 3. Merge Withdrawals (Withdrawals show under Receive)
   for (const w of withdrawals) {
-    if (processedDepositIds.has(String(w._id))) continue;
+    if (!w || !w._id) continue;
+    const wId = String(w._id);
+
+    if (processedReferenceIds.has(wId)) continue;
+
+    // Check if approved withdrawal is already represented in raw wallet transactions
+    if (w.status === 'approved') {
+      const wTime = new Date(w.createdAt).getTime();
+      const alreadyInRaw = rawTxs.some((tx) => {
+        if (tx.type !== 'debit') return false;
+        if (Number(tx.amount) !== Number(w.amount)) return false;
+        const txTime = new Date(tx.createdAt).getTime();
+        return Math.abs(txTime - wTime) < 2 * 60 * 60 * 1000 || tx.category === 'withdrawal';
+      });
+      if (alreadyInRaw) {
+        processedReferenceIds.add(wId);
+        continue;
+      }
+    }
+
+    processedReferenceIds.add(wId);
+
     const dateObj = new Date(w.createdAt);
     const dateFormatted = isNaN(dateObj.getTime())
       ? w.createdAt
@@ -163,10 +244,10 @@ const buildMergedPaymentItems = (
       isApproved ? 'Completed' : isPending ? 'Pending' : 'Failed';
 
     const item: PaymentItem = {
-      id: w._id,
+      id: wId,
       orderCode: w._id.slice(-8).toUpperCase(),
       date: `${dateFormatted} ${timeFormatted}`.trim(),
-      amount: Number(w.amount),
+      amount: Number(w.amount) || 0,
       currency: '₹',
       status: statusLabel,
       method: 'BANK WITHDRAWAL',
@@ -175,11 +256,26 @@ const buildMergedPaymentItems = (
         ? `Withdrawal to ${w.bankDetails?.upiId || 'UPI'} (Under Review)`
         : `Withdrawal Settled to ${w.bankDetails?.upiId || 'UPI'}`,
       terminalId: `WTH-${w._id.slice(-4).toUpperCase()}`,
-      type: 'purchase',
+      type: 'receive',
     };
     (item as any).rawDate = w.createdAt;
-    purchaseList.push(item);
+    receiveList.push(item);
   }
+
+  // 4. Secondary deduplication on both lists by unique ID
+  const deduplicateList = (items: PaymentItem[]): PaymentItem[] => {
+    const seen = new Set<string>();
+    const result: PaymentItem[] = [];
+    for (const item of items) {
+      if (!item.id || seen.has(item.id)) continue;
+      seen.add(item.id);
+      result.push(item);
+    }
+    return result;
+  };
+
+  const finalReceive = deduplicateList(receiveList);
+  const finalPurchase = deduplicateList(purchaseList);
 
   const sortByDate = (a: any, b: any) => {
     const tA = new Date(a.rawDate).getTime();
@@ -187,10 +283,10 @@ const buildMergedPaymentItems = (
     return (isNaN(tB) ? 0 : tB) - (isNaN(tA) ? 0 : tA);
   };
 
-  receiveList.sort(sortByDate);
-  purchaseList.sort(sortByDate);
+  finalReceive.sort(sortByDate);
+  finalPurchase.sort(sortByDate);
 
-  return { receive: receiveList, purchase: purchaseList };
+  return { receive: finalReceive, purchase: finalPurchase };
 };
 
 export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({
@@ -208,8 +304,8 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({
   const bottomNavPadding = useBottomNavPadding();
 
   const tabs = [
-    { id: 'receive' as const, label: 'Receive (Credits)' },
-    { id: 'purchase' as const, label: 'Purchase (Debits)' },
+    { id: 'receive' as const, label: 'Receive' },
+    { id: 'purchase' as const, label: 'Purchase' },
   ];
 
   useEffect(() => {
@@ -304,8 +400,8 @@ export const PaymentHistoryScreen: React.FC<PaymentHistoryScreenProps> = ({
                 <Text style={styles.emptyTitle}>No Transactions Yet</Text>
                 <Text style={styles.emptySubtitle}>
                   {activeTab === 'receive'
-                    ? 'No incoming credits or rewards found in your account.'
-                    : 'No outgoing purchases or withdrawals found in your account.'}
+                    ? 'No receive or withdrawal transactions found in your account.'
+                    : 'No purchase or deposit transactions found in your account.'}
                 </Text>
               </View>
             ) : (
